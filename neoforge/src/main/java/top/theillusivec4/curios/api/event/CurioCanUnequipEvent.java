@@ -42,7 +42,7 @@ public class CurioCanUnequipEvent extends LivingEvent {
 
   private final SlotContext slotContext;
   private final ItemStack stack;
-  private TriState result;
+  private TriState result = TriState.DEFAULT;
 
   public CurioCanUnequipEvent(ItemStack stack, SlotContext slotContext) {
     super(slotContext.entity());

@@ -22,9 +22,13 @@ package top.theillusivec4.curios.client;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
+import io.wispforest.accessories.data.SlotTypeLoader;
 import net.minecraft.resources.ResourceLocation;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.type.util.IIconHelper;
+import top.theillusivec4.curios.compat.ConversionUtils;
 
 public class IconHelper implements IIconHelper {
 
@@ -42,7 +46,9 @@ public class IconHelper implements IIconHelper {
 
   @Override
   public ResourceLocation getIcon(String identifier) {
-    return idToIcon.getOrDefault(identifier,
-        ResourceLocation.fromNamespaceAndPath(CuriosApi.MODID, "slot/empty_curio_slot"));
+    return Optional.ofNullable(SlotTypeLoader.INSTANCE.getSlotTypes(true).get(ConversionUtils.convertSlotToA(identifier)))
+            .map(slotType -> slotType.icon())
+            .orElse(ResourceLocation.fromNamespaceAndPath(CuriosApi.MODID, "slot/empty_curio_slot"));
+
   }
 }

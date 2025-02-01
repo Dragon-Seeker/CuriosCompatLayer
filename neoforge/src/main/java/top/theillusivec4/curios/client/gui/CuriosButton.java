@@ -21,6 +21,9 @@
 package top.theillusivec4.curios.client.gui;
 
 import javax.annotation.Nonnull;
+
+import io.wispforest.accessories.Accessories;
+import io.wispforest.accessories.client.AccessoriesClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ImageButton;
@@ -72,7 +75,8 @@ public class CuriosButton extends ImageButton {
                   recipeBookGui.toggleVisibility();
                 }
               }
-              PacketDistributor.sendToServer(new CPacketOpenCurios(stack));
+              AccessoriesClient.attemptToOpenScreen(false);
+              //PacketDistributor.sendToServer(new CPacketOpenCurios(stack));
             }
           }
         });

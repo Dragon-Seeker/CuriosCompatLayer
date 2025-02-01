@@ -187,7 +187,7 @@ public class CuriosEventHandler {
     return false;
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void playerLoggedIn(PlayerEvent.PlayerLoggedInEvent evt) {
     Player playerEntity = evt.getEntity();
 
@@ -199,7 +199,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void onDatapackSync(OnDatapackSyncEvent evt) {
 
     if (evt.getPlayer() == null) {
@@ -264,7 +264,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void entityConstructing(EntityEvent.EntityConstructing evt) {
     Entity entity = evt.getEntity();
 
@@ -285,7 +285,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void entityJoinWorld(EntityJoinLevelEvent evt) {
     Entity entity = evt.getEntity();
 
@@ -297,7 +297,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void playerStartTracking(PlayerEvent.StartTracking evt) {
     Entity target = evt.getTarget();
     Player player = evt.getEntity();
@@ -309,7 +309,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void playerClone(PlayerEvent.Clone evt) {
     Player player = evt.getEntity();
     Player oldPlayer = evt.getOriginal();
@@ -319,7 +319,7 @@ public class CuriosEventHandler {
         oldCurios -> newHandler.ifPresent(newCurios -> newCurios.readTag(oldCurios.writeTag())));
   }
 
-  @SubscribeEvent(priority = EventPriority.HIGHEST)
+  //SubscribeEvent(priority = EventPriority.HIGHEST)
   public void playerDrops(LivingDropsEvent evt) {
     LivingEntity livingEntity = evt.getEntity();
 
@@ -362,7 +362,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void playerXPPickUp(PlayerXpEvent.PickupXp evt) {
     Player player = evt.getEntity();
 
@@ -380,7 +380,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void curioRightClick(PlayerInteractEvent.RightClickItem evt) {
     Player player = evt.getEntity();
     ItemStack stack = evt.getItemStack();
@@ -439,7 +439,7 @@ public class CuriosEventHandler {
         }));
   }
 
-  @SubscribeEvent(priority = EventPriority.HIGHEST)
+  //@SubscribeEvent(priority = EventPriority.HIGHEST)
   public void onBreakBlock(BlockDropsEvent event) {
     AtomicInteger experience = new AtomicInteger(event.getDroppedExperience());
 
@@ -469,7 +469,7 @@ public class CuriosEventHandler {
 
   static Map<UUID, Pair<Long, Boolean>> enderManMaskCache = new HashMap<>();
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void enderManAnger(final EnderManAngerEvent evt) {
     // Check cached value first
     if (enderManMaskCache.size() > 500) {
@@ -510,7 +510,7 @@ public class CuriosEventHandler {
     enderManMaskCache.put(player.getUUID(), Pair.of(gameTime, false));
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void tick(EntityTickEvent.Post evt) {
     Entity entity = evt.getEntity();
 
@@ -643,7 +643,7 @@ public class CuriosEventHandler {
     }
   }
 
-  @SubscribeEvent
+  //@SubscribeEvent
   public void livingEquipmentChange(final LivingEquipmentChangeEvent evt) {
     CuriosApi.getCuriosInventory(evt.getEntity()).ifPresent(inv -> {
       ItemStack from = evt.getFrom();

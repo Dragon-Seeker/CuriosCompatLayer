@@ -34,8 +34,8 @@ public class MixinLivingEntity {
   @Inject(at = @At("TAIL"), method = "canFreeze()Z", cancellable = true)
   public void curio$canFreeze(CallbackInfoReturnable<Boolean> cir) {
 
-    if (CuriosUtilMixinHooks.isFreezeImmune((LivingEntity) (Object) this)) {
-      cir.setReturnValue(false);
-    }
+//    if (CuriosUtilMixinHooks.isFreezeImmune((LivingEntity) (Object) this)) {
+//      cir.setReturnValue(false);
+//    }
   }
 }

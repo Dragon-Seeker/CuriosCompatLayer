@@ -24,11 +24,12 @@ import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.core.Holder;
 import net.minecraft.world.entity.ai.attributes.Attribute;
+import top.theillusivec4.curios.compat.ConversionUtils;
 
 /**
  * A wrapper class for representing slot types as attributes for use in attribute modifiers
  */
-public class SlotAttribute extends Attribute {
+public class SlotAttribute extends io.wispforest.accessories.api.attributes.SlotAttribute {
 
   private static final Map<String, Holder<? extends Attribute>> SLOT_ATTRIBUTES = new HashMap<>();
 
@@ -41,7 +42,7 @@ public class SlotAttribute extends Attribute {
   }
 
   protected SlotAttribute(String identifier) {
-    super("curios.identifier." + identifier, 0);
+    super(ConversionUtils.convertSlotToA(identifier));
     this.identifier = identifier;
   }
 

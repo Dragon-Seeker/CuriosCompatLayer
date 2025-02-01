@@ -13,7 +13,21 @@
     "MixinNbtPredicate",
     "MixinPiglinAi",
     "MixinPowderSnowBlock",
-    "MixinV1460"
+    "MixinV1460",
+    "accessories.AccessoriesContainerImplAccessor",
+    "accessories.SlotAttributeMixin",
+    "accessories.AccessoriesForgeMixin",
+    "accessories.SlotTypeLoaderMixin",
+    "accessories.EntitySlotLoaderMixin",
+    "accessories.TagGroupLoaderMixin",
+    "accessories.RegisterCapabilitiesEventMixin",
+    "accessories.AccessoriesAPIMixin",
+    "accessories.AccessoriesCapabilityImplMixin",
+    "accessories.AccessoriesEventHandlerMixin"
+  ],
+  "client": [
+    "accessories.client.AccessoriesRendererRegistryMixin",
+    "accessories.client.ClientLanguageMixin"
   ],
   "minVersion": "0.8"
 }

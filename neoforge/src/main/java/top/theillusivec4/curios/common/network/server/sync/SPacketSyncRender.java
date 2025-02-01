@@ -28,6 +28,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import top.theillusivec4.curios.CuriosConstants;
 
+// TODO: WRAP PACKET ??
 public record SPacketSyncRender(int entityId, String curioId, int slotId, boolean value) implements
     CustomPacketPayload {
 

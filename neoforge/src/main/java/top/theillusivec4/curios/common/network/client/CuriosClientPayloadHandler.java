@@ -20,6 +20,8 @@
 
 package top.theillusivec4.curios.common.network.client;
 
+import io.wispforest.accessories.networking.client.AccessoryBreak;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import top.theillusivec4.curios.common.network.server.SPacketBreak;
@@ -32,6 +34,7 @@ import top.theillusivec4.curios.common.network.server.sync.SPacketSyncData;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncModifiers;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncStack;
+import top.theillusivec4.curios.compat.ConversionUtils;
 
 public class CuriosClientPayloadHandler {
 
@@ -50,42 +53,44 @@ public class CuriosClientPayloadHandler {
   }
 
   public void handle(final SPacketSetIcons data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketQuickMove data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketPage data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketBreak data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    handle(ctx, () -> {
+      AccessoryBreak.handlePacket(new AccessoryBreak(data.entityId(), ConversionUtils.convertSlotToA(data.curioId()), data.slotId()), ctx.player());
+    });
   }
 
   public void handle(final SPacketSyncRender data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketSyncModifiers data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketSyncData data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketSyncCurios data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketGrabbedItem data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 
   public void handle(final SPacketSyncStack data, final IPayloadContext ctx) {
-    handle(ctx, () -> CuriosClientPackets.handle(data));
+    //handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 }

@@ -20,11 +20,13 @@
 
 package top.theillusivec4.curios.api.type;
 
+import java.util.Objects;
 import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.ApiStatus;
 import top.theillusivec4.curios.api.type.capability.ICurio;
+import top.theillusivec4.curios.common.slottype.SlotType;
 
 public interface ISlotType extends Comparable<ISlotType> {
 
@@ -78,6 +80,31 @@ public interface ISlotType extends Comparable<ISlotType> {
   default CompoundTag writeNbt() {
     return new CompoundTag();
   }
+
+  //--
+
+  static boolean equals(ISlotType slotType, Object o) {
+    if (slotType == o) return true;
+    if (o == null || slotType.getClass() != o.getClass()) return false;
+    SlotType that = (SlotType) o;
+    return slotType.getIdentifier().equals(that.getIdentifier());
+  }
+
+  static int hashCode(ISlotType slotType) {
+    return Objects.hash(slotType.getIdentifier());
+  }
+
+  static int compareTo(ISlotType slotType, ISlotType otherType) {
+    if (slotType.getOrder() == otherType.getOrder()) {
+      return slotType.getIdentifier().compareTo(otherType.getIdentifier());
+    } else if (slotType.getOrder() > otherType.getOrder()) {
+      return 1;
+    } else {
+      return -1;
+    }
+  }
+
+  //--
 
   /**
    * @deprecated Check if {@link ISlotType#getSize()} returns 0

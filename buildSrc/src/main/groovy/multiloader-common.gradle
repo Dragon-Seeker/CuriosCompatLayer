@@ -3,8 +3,11 @@ plugins {
     id 'maven-publish'
 }
 
+version = "${version}-${rootProject.cc_layer_version}+${rootProject.minecraft_version}-${project.name}"
+group = group
+
 base {
-    archivesName = "${mod_id}-${project.name}"
+    archivesName = "accessories_${cc_layer_mod_id}"
 }
 
 java {
@@ -13,18 +16,18 @@ java {
     withJavadocJar()
 }
 
-task apiJar(type: Jar) {
-    archiveClassifier.set('api')
-    include 'top/theillusivec4/curios/api/**/*'
-    include 'top/theillusivec4/curios/platform/**/*'
-    from(project(":common").sourceSets.main.allSource)
-    from sourceSets.main.allSource
-    from sourceSets.main.output
-}
+//task apiJar(type: Jar) {
+//    archiveClassifier.set('api')
+//    include 'top/theillusivec4/curios/api/**/*'
+//    include 'top/theillusivec4/curios/platform/**/*'
+//    from(project(":common").sourceSets.main.allSource)
+//    from sourceSets.main.allSource
+//    from sourceSets.main.output
+//}
 
-artifacts {
-    archives apiJar
-}
+//artifacts {
+//    archives apiJar
+//}
 
 repositories {
     mavenCentral()
@@ -36,12 +39,26 @@ repositories {
                 url = 'https://repo.spongepowered.org/repository/maven-public'
             }
         }
-        filter { includeGroupAndSubgroups("org.spongepowered") }
+        filter { includeGroupAndSubgroups('org.spongepowered') }
+    }
+    exclusiveContent {
+        forRepositories(
+                maven {
+                    name = 'ParchmentMC'
+                    url = 'https://maven.parchmentmc.org/'
+                },
+                maven {
+                    name = "NeoForge"
+                    url = 'https://maven.neoforged.net/releases'
+                }
+        )
+        filter { includeGroup('org.parchmentmc.data') }
     }
     maven {
         name = 'BlameJared'
         url = 'https://maven.blamejared.com'
     }
+    maven { url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/" }
 }
 
 dependencies {
@@ -52,7 +69,8 @@ dependencies {
 // Read more about capabilities here: https://docs.gradle.org/current/userguide/component_capabilities.html#sec:declaring-additional-capabilities-for-a-local-component
 ['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
     configurations."$variant".outgoing {
-        capability("$group:$mod_id-${project.name}:$version")
+        capability("$group:${base.archivesName.get()}:$version")
+        capability("$group:$mod_id-${project.name}-${minecraft_version}:$version")
         capability("$group:$mod_id:$version")
     }
     publishing.publications.configureEach {
@@ -88,6 +106,10 @@ jar {
     }
 }
 
+compileJava {
+    options.incremental = false
+}
+
 processResources {
     def expandProps = [
             "version": version,
@@ -103,7 +125,13 @@ processResources {
             "description": project.description,
             "neoforge_version": neoforge_version,
             "neoforge_version_range": neoforge_version_range,
-            "java_version": java_version
+            "java_version": java_version,
+            "cc_layer_mod_id": "cc_layer_mod_id",
+            "cc_layer_version": "0.${cc_layer_version}",
+            "cc_layer_mod_name": cc_layer_mod_name,
+            "cc_layer_mod_author": cc_layer_mod_author,
+            "cc_layer_description": cc_layer_description,
+            "accessories_version_range": accessories_version_range
     ]
 
     filesMatching(['pack.mcmeta', 'META-INF/mods.toml', 'META-INF/neoforge.mods.toml', '*.mixins.json']) {
@@ -112,29 +140,29 @@ processResources {
     inputs.properties(expandProps)
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId base.archivesName.get()
-            artifact jar
-            artifact sourcesJar
-            artifact apiJar
-        }
-    }
-    repositories {
-
-        if (project.hasProperty('urlMaven')) {
-
-            if (project.hasProperty('userMaven') && project.hasProperty('passMaven')) {
-
-                maven {
-                    url urlMaven
-                    credentials {
-                        username userMaven
-                        password passMaven
-                    }
-                }
-            }
-        }
-    }
-}
+//publishing {
+//    publications {
+//        mavenJava(MavenPublication) {
+//            artifactId base.archivesName.get()
+//            artifact jar
+//            artifact sourcesJar
+//            artifact apiJar
+//        }
+//    }
+//    repositories {
+//
+//        if (project.hasProperty('urlMaven')) {
+//
+//            if (project.hasProperty('userMaven') && project.hasProperty('passMaven')) {
+//
+//                maven {
+//                    url urlMaven
+//                    credentials {
+//                        username userMaven
+//                        password passMaven
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}

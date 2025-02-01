@@ -172,17 +172,17 @@ public final class SlotType implements ISlotType {
 
   public static class Builder {
 
-    private final String identifier;
-    private Integer order = null;
-    private Integer size = null;
-    private int sizeMod = 0;
-    private Boolean useNativeGui = null;
-    private Boolean hasCosmetic = null;
-    private Boolean renderToggle = null;
-    private ResourceLocation icon =
+    public final String identifier;
+    public Integer order = null;
+    public Integer size = null;
+    public int sizeMod = 0;
+    public Boolean useNativeGui = null;
+    public Boolean hasCosmetic = null;
+    public Boolean renderToggle = null;
+    public ResourceLocation icon =
         ResourceLocation.fromNamespaceAndPath(CuriosConstants.MOD_ID, "slot/empty_curio_slot");
-    private ICurio.DropRule dropRule = ICurio.DropRule.DEFAULT;
-    private Set<ResourceLocation> validators = null;
+    public ICurio.DropRule dropRule = ICurio.DropRule.DEFAULT;
+    public Set<ResourceLocation> validators = null;
 
     public Builder(String identifier) {
       this.identifier = identifier;

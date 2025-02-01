@@ -51,9 +51,9 @@ public class MixinEnchantedCountIncreaseFunction {
   private int curios$applyEnchantBonus(int enchantmentLevel, ItemStack stack,
                                        LootContext lootContext) {
 
-    if (enchantment.is(Enchantments.LOOTING)) {
-      return enchantmentLevel + CuriosUtilMixinHooks.getLootingLevel(lootContext);
-    }
+//    if (enchantment.is(Enchantments.LOOTING)) {
+//      return enchantmentLevel + CuriosUtilMixinHooks.getLootingLevel(lootContext);
+//    }
     return enchantmentLevel;
   }
 }

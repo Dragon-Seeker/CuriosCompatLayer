@@ -25,7 +25,21 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import io.wispforest.accessories.Accessories;
+import io.wispforest.accessories.api.client.AccessoriesRendererRegistry;
+import io.wispforest.accessories.api.client.AccessoryRenderer;
+import io.wispforest.accessories.api.slot.SlotReference;
+import net.minecraft.client.model.EntityModel;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.RenderLayerParent;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import top.theillusivec4.curios.api.SlotContext;
+import top.theillusivec4.curios.compat.ConversionUtils;
 
 public class CuriosRendererRegistry {
 
@@ -42,7 +56,34 @@ public class CuriosRendererRegistry {
    * @param renderer The supplier renderer to invoke for the item in the registry
    */
   public static void register(Item item, Supplier<ICurioRenderer> renderer) {
-    RENDERER_REGISTRY.put(item, renderer);
+    AccessoriesRendererRegistry.registerRenderer(item, () -> {
+      var curiosRenderer = renderer.get();
+
+      return new AccessoryRenderer() {
+        @Override
+        public <M extends LivingEntity> void render(ItemStack stack, SlotReference reference, PoseStack matrices, EntityModel<M> model, MultiBufferSource multiBufferSource, int light, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
+          var renderLayer = new RenderLayerParent<M, EntityModel<M>>(){
+            @Override public EntityModel<M> getModel() { return model; }
+            @Override public ResourceLocation getTextureLocation(M entity) { return ResourceLocation.withDefaultNamespace(""); }
+          };
+
+          curiosRenderer.render(
+                  stack,
+                  ConversionUtils.convertToC(reference),
+                  matrices,
+                  renderLayer,
+                  multiBufferSource,
+                  light,
+                  limbSwing,
+                  limbSwingAmount,
+                  partialTicks,
+                  ageInTicks,
+                  netHeadYaw,
+                  headPitch
+          );
+        }
+      };
+    });
   }
 
   /**
@@ -52,7 +93,27 @@ public class CuriosRendererRegistry {
    * @return An optional renderer value associated with the item
    */
   public static Optional<ICurioRenderer> getRenderer(Item item) {
-    return Optional.ofNullable(RENDERERS.get(item));
+    return Optional.ofNullable(AccessoriesRendererRegistry.getRender(item)).map(accessoryRenderer -> {
+      return new ICurioRenderer() {
+        @Override
+        public <T extends LivingEntity, M extends EntityModel<T>> void render(ItemStack stack, SlotContext slotContext, PoseStack matrixStack, RenderLayerParent<T, M> renderLayerParent, MultiBufferSource renderTypeBuffer, int light, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
+          accessoryRenderer.render(
+                  stack,
+                  ConversionUtils.convertToA(slotContext),
+                  matrixStack,
+                  renderLayerParent.getModel(),
+                  renderTypeBuffer,
+                  light,
+                  limbSwing,
+                  limbSwingAmount,
+                  partialTicks,
+                  ageInTicks,
+                  netHeadYaw,
+                  headPitch
+          );
+        }
+      };
+    });
   }
 
   /**

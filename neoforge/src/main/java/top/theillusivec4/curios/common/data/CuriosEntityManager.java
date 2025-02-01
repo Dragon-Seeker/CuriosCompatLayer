@@ -35,6 +35,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
+
+import io.wispforest.accessories.data.EntitySlotLoader;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -53,25 +55,36 @@ import net.minecraft.world.entity.EntityType;
 import net.neoforged.neoforge.common.conditions.ICondition;
 import top.theillusivec4.curios.CuriosConstants;
 import top.theillusivec4.curios.api.type.ISlotType;
+import top.theillusivec4.curios.compat.NeoConversionUtils;
 
 public class CuriosEntityManager extends SimpleJsonResourceReloadListener {
 
   private static final Gson GSON =
       (new GsonBuilder()).setPrettyPrinting().disableHtmlEscaping().create();
 
-  public static CuriosEntityManager SERVER = new CuriosEntityManager();
-  public static CuriosEntityManager CLIENT = new CuriosEntityManager();
+  public static CuriosEntityManager SERVER = new CuriosEntityManager(false);
+  public static CuriosEntityManager CLIENT = new CuriosEntityManager(true);
   private Map<EntityType<?>, Map<String, ISlotType>> entitySlots = ImmutableMap.of();
   private Map<String, Set<String>> idToMods = ImmutableMap.of();
 
-  public CuriosEntityManager() {
+  private final boolean isClient;
+
+  public CuriosEntityManager(boolean isClient) {
     super(GSON, "curios/entities");
+
+    this.isClient = isClient;
+  }
+
+  private final Map<EntityType<?>, ImmutableSet.Builder<String>> entityToSlotId = new HashMap<>();
+
+  public Map<EntityType<?>, ImmutableSet.Builder<String>> entityToSlotId() {
+    return this.entityToSlotId;
   }
 
   protected void apply(Map<ResourceLocation, JsonElement> pObject,
                        @Nonnull ResourceManager pResourceManager,
                        @Nonnull ProfilerFiller pProfiler) {
-    Map<EntityType<?>, ImmutableMap.Builder<String, ISlotType>> map = new HashMap<>();
+    Map<EntityType<?>, ImmutableSet.Builder<String>> map = new HashMap<>();
     Map<String, ImmutableSet.Builder<String>> modMap = new HashMap<>();
     Map<ResourceLocation, JsonElement> sorted = new LinkedHashMap<>();
     pResourceManager.listPacks().forEach(packResources -> {
@@ -104,12 +117,12 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener {
             jsonObject, resourcelocation).entrySet()) {
 
           if (GsonHelper.getAsBoolean(jsonObject, "replace", false)) {
-            ImmutableMap.Builder<String, ISlotType> builder = ImmutableMap.builder();
-            builder.putAll(entry1.getValue());
+            ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+            builder.addAll(entry1.getValue().keySet());
             map.put(entry1.getKey(), builder);
           } else {
-            map.computeIfAbsent(entry1.getKey(), (k) -> ImmutableMap.builder())
-                .putAll(entry1.getValue());
+            map.computeIfAbsent(entry1.getKey(), (k) -> ImmutableSet.builder())
+                .addAll(entry1.getValue().keySet());
           }
           modMap.computeIfAbsent(resourcelocation.getPath(), (k) -> ImmutableSet.builder())
               .add(resourcelocation.getNamespace());
@@ -125,10 +138,13 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener {
           .ifPresentOrElse(slot -> configSlots.put(configSlot, slot),
               () -> CuriosConstants.LOG.error("{} is not a registered slot type!", configSlot));
     }
-    map.computeIfAbsent(EntityType.PLAYER, (k) -> ImmutableMap.builder()).putAll(configSlots);
-    this.entitySlots = map.entrySet().stream().collect(
-        ImmutableMap.toImmutableMap(Map.Entry::getKey,
-            (entry) -> entry.getValue().buildKeepingLast()));
+    map.computeIfAbsent(EntityType.PLAYER, (k) -> ImmutableSet.builder()).addAll(configSlots.keySet());
+//    this.entitySlots = map.entrySet().stream()
+//            .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, (entry) -> entry.getValue().buildKeepingLast()));
+
+    this.entityToSlotId.clear();
+    this.entityToSlotId.putAll(map);
+
     this.idToMods = modMap.entrySet().stream()
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().build()));
     CuriosConstants.LOG.info("Loaded {} curio entities", map.size());
@@ -231,11 +247,7 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener {
   }
 
   public Map<String, ISlotType> getEntitySlots(EntityType<?> type) {
-
-    if (this.entitySlots.containsKey(type)) {
-      return this.entitySlots.get(type);
-    }
-    return ImmutableMap.of();
+    return NeoConversionUtils.convertToC(EntitySlotLoader.INSTANCE.getSlotTypes(this.isClient, type));
   }
 
   public Map<String, Set<String>> getModsFromSlots() {

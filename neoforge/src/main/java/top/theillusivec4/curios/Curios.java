@@ -21,8 +21,13 @@
 package top.theillusivec4.curios;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
-import javax.annotation.Nonnull;
+import java.util.stream.Collectors;
+
+import io.wispforest.accessories.api.AccessoriesAPI;
+import io.wispforest.accessories.api.events.*;
+import io.wispforest.accessories.data.SlotTypeLoader;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.resources.PlayerSkin;
@@ -46,12 +51,13 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.InterModProcessEvent;
+import net.neoforged.neoforge.capabilities.ICapabilityProvider;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.conditions.ICondition;
+import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
@@ -61,7 +67,8 @@ import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.CuriosCapability;
 import top.theillusivec4.curios.api.SlotTypeMessage;
 import top.theillusivec4.curios.api.client.CuriosRendererRegistry;
-import top.theillusivec4.curios.api.type.ISlotType;
+import top.theillusivec4.curios.api.event.*;
+import top.theillusivec4.curios.api.type.capability.ICurio;
 import top.theillusivec4.curios.api.type.capability.ICurioItem;
 import top.theillusivec4.curios.client.ClientEventHandler;
 import top.theillusivec4.curios.client.CuriosClientConfig;
@@ -73,7 +80,6 @@ import top.theillusivec4.curios.client.render.CuriosLayer;
 import top.theillusivec4.curios.common.CuriosConfig;
 import top.theillusivec4.curios.common.CuriosHelper;
 import top.theillusivec4.curios.common.CuriosRegistry;
-import top.theillusivec4.curios.common.capability.CurioInventoryCapability;
 import top.theillusivec4.curios.common.capability.CurioItemHandler;
 import top.theillusivec4.curios.common.capability.ItemizedCurioCapability;
 import top.theillusivec4.curios.common.data.CuriosEntityManager;
@@ -81,11 +87,18 @@ import top.theillusivec4.curios.common.data.CuriosSlotManager;
 import top.theillusivec4.curios.common.event.CuriosEventHandler;
 import top.theillusivec4.curios.common.network.NetworkHandler;
 import top.theillusivec4.curios.common.slottype.LegacySlotManager;
+import top.theillusivec4.curios.compat.AccessoriesBasedCurioSlot;
+import top.theillusivec4.curios.compat.AccessoriesEventHooks;
+import top.theillusivec4.curios.compat.ConversionUtils;
+import top.theillusivec4.curios.compat.NeoConversionUtils;
+import top.theillusivec4.curios.compat.lang.CurioLangRedirects;
 import top.theillusivec4.curios.mixin.CuriosImplMixinHooks;
 import top.theillusivec4.curios.server.SlotHelper;
 import top.theillusivec4.curios.server.command.CurioArgumentType;
 import top.theillusivec4.curios.server.command.CuriosCommand;
 import top.theillusivec4.curios.server.command.CuriosSelectorOptions;
+
+import javax.annotation.Nonnull;
 
 @Mod(CuriosConstants.MOD_ID)
 public class Curios {
@@ -99,7 +112,7 @@ public class Curios {
     NeoForge.EVENT_BUS.addListener(this::serverAboutToStart);
     NeoForge.EVENT_BUS.addListener(this::serverStopped);
     NeoForge.EVENT_BUS.addListener(this::registerCommands);
-    NeoForge.EVENT_BUS.addListener(this::reload);
+//    NeoForge.EVENT_BUS.addListener(this::reload);
     modContainer.registerConfig(ModConfig.Type.CLIENT, CuriosClientConfig.CLIENT_SPEC);
     modContainer.registerConfig(ModConfig.Type.COMMON, CuriosConfig.COMMON_SPEC);
     modContainer.registerConfig(ModConfig.Type.SERVER, CuriosConfig.SERVER_SPEC);
@@ -111,8 +124,10 @@ public class Curios {
 
   private void setup(FMLCommonSetupEvent evt) {
     CuriosApi.setCuriosHelper(new CuriosHelper());
-    NeoForge.EVENT_BUS.register(new CuriosEventHandler());
+    //NeoForge.EVENT_BUS.register(new CuriosEventHandler());
     evt.enqueueWork(CuriosSelectorOptions::register);
+
+    AccessoriesEventHooks.initAccessoriesEventHooks();
   }
 
   private void registerCaps(RegisterCapabilitiesEvent evt) {
@@ -137,7 +152,7 @@ public class Curios {
             if (entity instanceof LivingEntity livingEntity) {
 
               if (!CuriosApi.getEntitySlots(livingEntity).isEmpty()) {
-                return new CurioInventoryCapability(livingEntity);
+                return CuriosApi.getCuriosInventory(livingEntity).orElse(null);
               }
             }
             return null;
@@ -145,21 +160,31 @@ public class Curios {
     }
 
     for (Item item : BuiltInRegistries.ITEM) {
-      evt.registerItem(CuriosCapability.ITEM, (stack, ctx) -> {
-        Item it = stack.getItem();
-        ICurioItem curioItem = CuriosImplMixinHooks.getCurioFromRegistry(item).orElse(null);
+      if (!CuriosImplMixinHooks.REGISTRY.containsKey(item) && item instanceof ICurioItem itemCurio) {
+        AccessoriesAPI.registerAccessory(item, NeoConversionUtils.convertToA((stack, ctx) -> {
+          return itemCurio.hasCurioCapability(stack)
+                  ? new ItemizedCurioCapability(itemCurio, stack)
+                  : null;
+        }));
+      }
 
-        if (curioItem == null && it instanceof ICurioItem itemCurio) {
-          curioItem = itemCurio;
-        }
-
-        if (curioItem != null && curioItem.hasCurioCapability(stack)) {
-          return new ItemizedCurioCapability(curioItem, stack);
-        }
-        return null;
-      }, item);
+      evt.registerItem(CuriosCapability.ITEM, BASE_PROVIDER, item);
     }
   }
+
+  public static final ICapabilityProvider<ItemStack, Void, ICurio> BASE_PROVIDER = (stack, ctx) -> {
+    Item it = stack.getItem();
+    ICurioItem curioItem = CuriosImplMixinHooks.getCurioFromRegistry(stack.getItem()).orElse(null);
+
+    if (curioItem == null && it instanceof ICurioItem itemCurio) {
+      curioItem = itemCurio;
+    }
+
+    if (curioItem != null && curioItem.hasCurioCapability(stack)) {
+      return new ItemizedCurioCapability(curioItem, stack);
+    }
+    return null;
+  };
 
   private void process(InterModProcessEvent evt) {
     LegacySlotManager.buildImcSlotTypes(evt.getIMCStream(SlotTypeMessage.REGISTER_TYPE::equals),
@@ -170,10 +195,10 @@ public class Curios {
     CuriosApi.setSlotHelper(new SlotHelper());
     Set<String> slotIds = new HashSet<>();
 
-    for (ISlotType value : CuriosSlotManager.SERVER.getSlots().values()) {
-      CuriosApi.getSlotHelper().addSlotType(value);
-      slotIds.add(value.getIdentifier());
-    }
+    SlotTypeLoader.INSTANCE.getSlotTypes(false).values().forEach(slotType -> {
+      CuriosApi.getSlotHelper().addSlotType(new AccessoriesBasedCurioSlot(slotType));
+      slotIds.add(ConversionUtils.convertSlotToC(slotType.name()));
+    });
     CurioArgumentType.slotIds = slotIds;
   }
 
@@ -186,9 +211,7 @@ public class Curios {
   }
 
   private void reload(final AddReloadListenerEvent evt) {
-    CuriosSlotManager.SERVER = new CuriosSlotManager();
     evt.addListener(CuriosSlotManager.SERVER);
-    CuriosEntityManager.SERVER = new CuriosEntityManager();
     evt.addListener(CuriosEntityManager.SERVER);
     evt.addListener(new SimplePreparableReloadListener<Void>() {
       @Nonnull
@@ -209,7 +232,7 @@ public class Curios {
   @EventBusSubscriber(modid = CuriosConstants.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
   public static class ClientProxy {
 
-    @SubscribeEvent
+    //@SubscribeEvent
     public static void registerKeys(final RegisterKeyMappingsEvent evt) {
       evt.register(KeyRegistry.openCurios);
     }
@@ -217,8 +240,9 @@ public class Curios {
     @SubscribeEvent
     public static void setupClient(FMLClientSetupEvent evt) {
       CuriosApi.setIconHelper(new IconHelper());
-      NeoForge.EVENT_BUS.register(new ClientEventHandler());
-      NeoForge.EVENT_BUS.register(new GuiEventHandler());
+      //NeoForge.EVENT_BUS.register(new ClientEventHandler());
+      //NeoForge.EVENT_BUS.register(new GuiEventHandler());
+      CurioLangRedirects.init();
     }
 
     @SubscribeEvent
@@ -229,9 +253,9 @@ public class Curios {
     @SubscribeEvent
     public static void addLayers(EntityRenderersEvent.AddLayers evt) {
 
-      for (PlayerSkin.Model skin : evt.getSkins()) {
-        addPlayerLayer(evt, skin);
-      }
+//      for (PlayerSkin.Model skin : evt.getSkins()) {
+//        addPlayerLayer(evt, skin);
+//      }
       CuriosRendererRegistry.load();
     }
 

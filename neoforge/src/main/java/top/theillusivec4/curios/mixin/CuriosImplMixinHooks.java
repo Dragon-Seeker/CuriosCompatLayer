@@ -32,6 +32,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import io.wispforest.accessories.Accessories;
+import io.wispforest.accessories.api.AccessoriesAPI;
+import io.wispforest.accessories.api.AccessoriesCapability;
+import io.wispforest.accessories.api.slot.SlotType;
+import io.wispforest.accessories.data.SlotTypeLoader;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -43,6 +50,7 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.common.NeoForge;
@@ -60,19 +68,27 @@ import top.theillusivec4.curios.api.type.capability.ICurio;
 import top.theillusivec4.curios.api.type.capability.ICurioItem;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.common.CuriosRegistry;
+import top.theillusivec4.curios.common.capability.CurioInventoryCapability;
+import top.theillusivec4.curios.common.capability.ItemizedCurioCapability;
 import top.theillusivec4.curios.common.data.CuriosEntityManager;
 import top.theillusivec4.curios.common.data.CuriosSlotManager;
 import top.theillusivec4.curios.common.network.server.SPacketBreak;
+import top.theillusivec4.curios.compat.*;
 
 public class CuriosImplMixinHooks {
 
-  private static final Map<Item, ICurioItem> REGISTRY = new ConcurrentHashMap<>();
+  public static final Map<Item, ICurioItem> REGISTRY = new ConcurrentHashMap<>();
 
   public static void registerCurio(Item item, ICurioItem icurio) {
     REGISTRY.put(item, icurio);
+    AccessoriesAPI.registerAccessory(item, NeoConversionUtils.convertToA(icurio));
   }
 
   public static Optional<ICurioItem> getCurioFromRegistry(Item item) {
+    var accessory = AccessoriesAPI.getAccessory(item);
+
+    if (accessory != null && !(accessory instanceof AccessoryFromCurio)) return Optional.of(new CurioFromAccessory(accessory));
+
     return Optional.ofNullable(REGISTRY.get(item));
   }
 
@@ -89,7 +105,7 @@ public class CuriosImplMixinHooks {
 
   public static Map<String, ISlotType> getItemStackSlots(ItemStack stack, boolean isClient) {
     return filteredSlots(slotType -> {
-      SlotContext slotContext = new SlotContext(slotType.getIdentifier(), null, 0, false, true);
+      SlotContext slotContext = new SlotContext(slotType.getIdentifier(), null, 0, false, true).isClient(isClient);
       SlotResult slotResult = new SlotResult(slotContext, stack);
       return CuriosApi.testCurioPredicates(slotType.getValidators(), slotResult);
     }, CuriosApi.getSlots(isClient));
@@ -120,13 +136,22 @@ public class CuriosImplMixinHooks {
   }
 
   public static Optional<ICurio> getCurio(ItemStack stack) {
+    var accessory = AccessoriesAPI.getAccessory(stack);
+
+    if (accessory != null) {
+      return Optional.ofNullable(NeoConversionUtils.convertToC(accessory, stack));
+    }
+
     return Optional.ofNullable(stack.getCapability(CuriosCapability.ITEM));
   }
 
   public static Optional<ICuriosItemHandler> getCuriosInventory(LivingEntity livingEntity) {
-
     if (livingEntity != null) {
-      return Optional.ofNullable(livingEntity.getCapability(CuriosCapability.INVENTORY));
+      var capability = AccessoriesCapability.get(livingEntity);
+
+      if (capability == null) return Optional.empty();
+
+      return Optional.of(new CurioInventoryCapability(livingEntity, capability));
     } else {
       return Optional.empty();
     }
@@ -262,10 +287,9 @@ public class CuriosImplMixinHooks {
   public static void broadcastCurioBreakEvent(SlotContext slotContext) {
     LivingEntity livingEntity = slotContext.entity();
 
-    if (livingEntity != null) {
-      PacketDistributor.sendToPlayersTrackingEntityAndSelf(livingEntity,
-          new SPacketBreak(livingEntity.getId(), slotContext.identifier(), slotContext.index()));
-    }
+    if (livingEntity == null) return;
+
+    AccessoriesAPI.breakStack(ConversionUtils.convertToA(slotContext));
   }
 
   private static final Map<String, UUID> UUIDS = new HashMap<>();
@@ -275,34 +299,45 @@ public class CuriosImplMixinHooks {
     return ResourceLocation.fromNamespaceAndPath(CuriosConstants.MOD_ID, key);
   }
 
-
   private static final Map<ResourceLocation, Predicate<SlotResult>> SLOT_RESULT_PREDICATES =
       new HashMap<>();
 
   public static void registerCurioPredicate(ResourceLocation resourceLocation,
                                             Predicate<SlotResult> validator) {
     SLOT_RESULT_PREDICATES.putIfAbsent(resourceLocation, validator);
+
+    if(resourceLocation.getNamespace().equals(CuriosApi.MODID)) return;
+
+    AccessoriesAPI.registerPredicate(resourceLocation, new CuriosSlotBasedPredicate(resourceLocation, validator));
   }
 
   public static Optional<Predicate<SlotResult>> getCurioPredicate(
       ResourceLocation resourceLocation) {
-    return Optional.ofNullable(SLOT_RESULT_PREDICATES.get(resourceLocation));
+    var location = ConversionUtils.convertToA(resourceLocation);
+    var predicate = AccessoriesAPI.getPredicate(ConversionUtils.convertToA(resourceLocation));
+
+    return Optional.of(new AccessorySlotResultPredicate(location, predicate));
   }
 
   public static Map<ResourceLocation, Predicate<SlotResult>> getCurioPredicates() {
+    // TODO: LOOK AT ACCESSORIES PREDICATES?
     return ImmutableMap.copyOf(SLOT_RESULT_PREDICATES);
   }
 
-  public static boolean testCurioPredicates(Set<ResourceLocation> predicates,
-                                            SlotResult slotResult) {
+  public static boolean testCurioPredicates(Set<ResourceLocation> predicates, SlotResult slotResult) {
+    predicates = predicates.stream().map(ConversionUtils::convertToA).collect(Collectors.toSet());
 
-    for (ResourceLocation id : predicates) {
+    var ctx = slotResult.slotContext();
 
-      if (CuriosApi.getCurioPredicate(id).map(
-          slotResultPredicate -> slotResultPredicate.test(slotResult)).orElse(false)) {
-        return true;
-      }
-    }
+    LivingEntity livingEntity = ctx.entity();
+    Level level = livingEntity != null ? livingEntity.level() : null;
+
+    SlotType slotType = ctx.slotType();
+
+    try {
+      AccessoriesAPI.getPredicateResults(predicates, level, livingEntity, slotType, ctx.index(), slotResult.stack());
+    } catch (Exception ignored) {}
+
     return false;
   }
 

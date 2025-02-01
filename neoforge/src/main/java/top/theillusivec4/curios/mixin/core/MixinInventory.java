@@ -46,9 +46,9 @@ public class MixinInventory {
   )
   private void curios$containsStack(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
 
-    if (CuriosUtilMixinHooks.containsStack(this.player, stack)) {
-      cir.setReturnValue(true);
-    }
+//    if (CuriosUtilMixinHooks.containsStack(this.player, stack)) {
+//      cir.setReturnValue(true);
+//    }
   }
 
   @Inject(
@@ -58,8 +58,8 @@ public class MixinInventory {
   )
   private void curios$containsTag(TagKey<Item> tagKey, CallbackInfoReturnable<Boolean> cir) {
 
-    if (CuriosUtilMixinHooks.containsTag(this.player, tagKey)) {
-      cir.setReturnValue(true);
-    }
+//    if (CuriosUtilMixinHooks.containsTag(this.player, tagKey)) {
+//      cir.setReturnValue(true);
+//    }
   }
 }

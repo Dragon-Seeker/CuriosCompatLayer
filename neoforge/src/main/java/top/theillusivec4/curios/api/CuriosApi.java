@@ -28,7 +28,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+
+import io.wispforest.accessories.api.AccessoriesAPI;
+import io.wispforest.accessories.data.EntitySlotLoader;
+import io.wispforest.accessories.data.SlotTypeLoader;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +58,8 @@ import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.util.ICuriosHelper;
 import top.theillusivec4.curios.api.type.util.IIconHelper;
 import top.theillusivec4.curios.api.type.util.ISlotHelper;
+import top.theillusivec4.curios.compat.AccessoriesBasedCurioSlot;
+import top.theillusivec4.curios.compat.NeoConversionUtils;
 
 public final class CuriosApi {
 
@@ -112,8 +119,8 @@ public final class CuriosApi {
    * @return The registered slot types
    */
   public static Map<String, ISlotType> getSlots(boolean isClient) {
-    apiError();
-    return Map.of();
+    // TODO: MAKE MORE PERFORMANT BY WRAPPING MAP AND NOT CONSTRUCTING NEW MAP
+    return NeoConversionUtils.convertToC(SlotTypeLoader.INSTANCE.getSlotTypes(isClient));
   }
 
   /**
@@ -175,8 +182,7 @@ public final class CuriosApi {
    * @return The slot types provided to the entity
    */
   public static Map<String, ISlotType> getEntitySlots(EntityType<?> type, boolean isClient) {
-    apiError();
-    return Map.of();
+    return NeoConversionUtils.convertToC(EntitySlotLoader.INSTANCE.getSlotTypes(isClient, type));
   }
 
   /**

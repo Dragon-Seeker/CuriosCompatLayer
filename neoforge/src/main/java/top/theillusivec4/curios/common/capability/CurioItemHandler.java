@@ -38,7 +38,7 @@ public class CurioItemHandler implements IItemHandler {
   public CurioItemHandler(final LivingEntity livingEntity) {
     this.livingEntity = livingEntity;
     CurioInventory inv = livingEntity.getData(CuriosRegistry.INVENTORY.get());
-    Map<String, ICurioStacksHandler> curios = inv.curios;
+    Map<String, ICurioStacksHandler> curios = inv.asMap();
     IItemHandlerModifiable[] itemHandlers = new IItemHandlerModifiable[curios.size()];
     int index = 0;
 

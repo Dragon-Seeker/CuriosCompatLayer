@@ -39,6 +39,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.StringTokenizer;
 import javax.annotation.Nonnull;
+
+import io.wispforest.accessories.data.SlotTypeLoader;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -57,20 +59,28 @@ import top.theillusivec4.curios.api.type.capability.ICurio;
 import top.theillusivec4.curios.common.CuriosConfig;
 import top.theillusivec4.curios.common.slottype.LegacySlotManager;
 import top.theillusivec4.curios.common.slottype.SlotType;
+import top.theillusivec4.curios.compat.AccessoriesBasedCurioSlot;
+import top.theillusivec4.curios.compat.ConversionUtils;
+import top.theillusivec4.curios.compat.NeoConversionUtils;
 
 public class CuriosSlotManager extends SimpleJsonResourceReloadListener {
 
   private static final Gson GSON =
       (new GsonBuilder()).setPrettyPrinting().disableHtmlEscaping().create();
-  public static CuriosSlotManager SERVER = new CuriosSlotManager();
-  public static CuriosSlotManager CLIENT = new CuriosSlotManager();
+  public final static CuriosSlotManager SERVER = new CuriosSlotManager(false);
+  public final static CuriosSlotManager CLIENT = new CuriosSlotManager(true);
   private Map<String, ISlotType> slots = ImmutableMap.of();
   private Set<String> configSlots = ImmutableSet.of();
   private Map<String, ResourceLocation> icons = ImmutableMap.of();
   private Map<String, Set<String>> idToMods = ImmutableMap.of();
 
-  public CuriosSlotManager() {
+  private final Map<String, SlotType.Builder> builders = new HashMap<>();
+  private final boolean isClientSide;
+
+  public CuriosSlotManager(boolean isClientSide) {
     super(GSON, "curios/slots");
+
+    this.isClientSide = isClientSide;
   }
 
   protected void apply(@Nonnull Map<ResourceLocation, JsonElement> pObject,
@@ -167,19 +177,28 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener {
     } catch (IllegalArgumentException e) {
       CuriosConstants.LOG.error("Config parsing error", e);
     }
-    this.slots = map.entrySet().stream()
-        .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().build()));
+
+    this.builders.clear();
+    this.builders.putAll(map);
+
     this.idToMods = modMap.entrySet().stream()
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().build()));
     CuriosConstants.LOG.info("Loaded {} curio slots", map.size());
   }
 
+  public Map<String, SlotType.Builder> getCuriosBuilders() {
+    return this.builders;
+  }
+
   public Map<String, ISlotType> getSlots() {
-    return this.slots;
+    return NeoConversionUtils.convertToC(SlotTypeLoader.INSTANCE.getSlotTypes(this.isClientSide));
   }
 
   public Optional<ISlotType> getSlot(String id) {
-    return Optional.ofNullable(this.slots.get(id));
+    return Optional.ofNullable(
+            SlotTypeLoader.INSTANCE.getSlotTypes(this.isClientSide)
+                    .get(ConversionUtils.convertSlotToA(id))
+    ).map(AccessoriesBasedCurioSlot::new);
   }
 
   public static ListTag getSyncPacket() {
@@ -213,12 +232,17 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener {
   }
 
   public Map<String, ResourceLocation> getIcons() {
-    return this.icons;
+    return NeoConversionUtils.convertToC(
+            SlotTypeLoader.INSTANCE.getSlotTypes(this.isClientSide),
+            io.wispforest.accessories.api.slot.SlotType::icon);
   }
 
-  public ResourceLocation getIcon(String identifier) {
-    return this.icons.getOrDefault(identifier,
-        ResourceLocation.fromNamespaceAndPath(CuriosApi.MODID, "slot/empty_curio_slot"));
+  public ResourceLocation getIcon(String id) {
+    return Optional.ofNullable(
+            SlotTypeLoader.INSTANCE.getSlotTypes(this.isClientSide)
+                    .get(ConversionUtils.convertSlotToA(id))
+                    .icon()
+    ).orElse(ResourceLocation.fromNamespaceAndPath(CuriosApi.MODID, "slot/empty_curio_slot"));
   }
 
   public Map<String, Set<String>> getModsFromSlots() {

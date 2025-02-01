@@ -34,7 +34,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+
+import io.wispforest.accessories.api.AccessoriesCapability;
+import io.wispforest.accessories.impl.AccessoriesCapabilityImpl;
 import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
@@ -63,24 +67,40 @@ import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler;
 import top.theillusivec4.curios.common.CuriosRegistry;
+import top.theillusivec4.curios.compat.AccessoriesBasedStackHandler;
 
 public class CurioInventoryCapability implements ICuriosItemHandler {
 
+  public final AccessoriesCapabilityImpl capability;
   final CurioInventory curioInventory;
   final LivingEntity livingEntity;
 
   public CurioInventoryCapability(final LivingEntity livingEntity) {
+    this(livingEntity, AccessoriesCapability.get(livingEntity));
+  }
+
+  public CurioInventoryCapability(final LivingEntity livingEntity, final AccessoriesCapability capability) {
+    if (capability == null) {
+      throw new NullPointerException("Unable to create the CurioInventoryCapability due to the given AccessoriesCapability being null for the given entity! [Entity: " + livingEntity + "]");
+    }
+
     this.livingEntity = livingEntity;
+    this.capability = (AccessoriesCapabilityImpl) capability;
     this.curioInventory = livingEntity.getData(CuriosRegistry.INVENTORY.get());
 
-    if (this.curioInventory.markDeserialized) {
-      this.reset();
-    }
+    // TODO: MAYBE REMOVE?
+    this.reset();
+  }
+
+  public static void attemptConversion(AccessoriesCapabilityImpl capability) {
+    if (!capability.entity().hasData(CuriosRegistry.INVENTORY)) return;
+
+    new CurioInventoryCapability(capability.entity(), capability);
   }
 
   @Override
   public void reset() {
-    this.curioInventory.init(this);
+    this.curioInventory.init(this.capability);
   }
 
   @Override
@@ -322,19 +342,19 @@ public class CurioInventoryCapability implements ICuriosItemHandler {
 
   @Override
   public void loseInvalidStack(ItemStack stack) {
-    this.curioInventory.invalidStacks.add(stack);
+    this.curioInventory.invalidStacks().add(stack);
   }
 
   @Override
   public void handleInvalidStacks() {
 
-    if (this.livingEntity != null && !this.curioInventory.invalidStacks.isEmpty()) {
+    if (this.livingEntity != null && !this.curioInventory.invalidStacks().isEmpty()) {
 
       if (this.livingEntity instanceof Player player) {
-        this.curioInventory.invalidStacks.forEach(
+        this.curioInventory.invalidStacks().forEach(
             drop -> ItemHandlerHelper.giveItemToPlayer(player, drop));
       } else {
-        this.curioInventory.invalidStacks.forEach(drop -> {
+        this.curioInventory.invalidStacks().forEach(drop -> {
           ItemEntity ent = this.livingEntity.spawnAtLocation(drop, 1.0F);
           RandomSource rand = this.livingEntity.getRandom();
 
@@ -345,7 +365,7 @@ public class CurioInventoryCapability implements ICuriosItemHandler {
           }
         });
       }
-      this.curioInventory.invalidStacks = NonNullList.create();
+      this.curioInventory.invalidStacks().clear();
     }
   }
 
@@ -450,7 +470,10 @@ public class CurioInventoryCapability implements ICuriosItemHandler {
 
   @Override
   public Set<ICurioStacksHandler> getUpdatingInventories() {
-    return this.curioInventory.updates;
+    return ((AccessoriesCapabilityImpl) this.capability.getHolder()).getUpdatingInventories().keySet()
+            .stream()
+            .map(container -> new AccessoriesBasedStackHandler(container))
+            .collect(Collectors.toUnmodifiableSet());
   }
 
   @Override

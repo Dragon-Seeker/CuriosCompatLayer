@@ -1,31 +1,47 @@
 modLoader="javafml"
 loaderVersion="[1,)"
 license="${license}"
-issueTrackerURL="${issues_url}"
-logoFile="${mod_id}_icon.png"
 logoBlur=false
+
+[[mods]]
+    modId="${cc_layer_mod_id}"
+    version="${cc_layer_version}"
+    displayName="${cc_layer_mod_name}"
+    displayURL="${sources_url}"
+    authors="${cc_layer_mod_author}"
+    description='''${cc_layer_description}'''
+    logoFile="${cc_layer_mod_id}_icon.png"
+    issueTrackerURL="${issues_url}"
 [[mods]]
     modId="${mod_id}"
     version="${version}"
     displayName="${mod_name}"
-    displayURL="${sources_url}"
     authors="${mod_author}"
     description='''${description}'''
+    logoFile="${mod_id}_icon.png"
 [[mixins]]
     config = "${mod_id}.neoforge.mixins.json"
 [[mixins]]
     config = "${mod_id}.mixins.json"
-[[dependencies.${mod_id}]]
+[[dependencies.${cc_layer_mod_id}]]
     modId="neoforge"
     type="required"
     versionRange="${neoforge_version_range}"
     ordering="NONE"
     side="BOTH"
-[[dependencies.${mod_id}]]
+[[dependencies.${cc_layer_mod_id}]]
     modId="minecraft"
     type="required"
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+[[dependencies.${cc_layer_mod_id}]]
+    modId="accessories"
+    type="required"
+    versionRange="${accessories_version_range}"
+    ordering="NONE"
+    side="BOTH"
 [modproperties.${mod_id}]
     catalogueImageIcon="${mod_id}_icon.png"
+[modproperties.${cc_layer_mod_id}]
+    catalogueImageIcon="${cc_layer_mod_id}_icon.png"

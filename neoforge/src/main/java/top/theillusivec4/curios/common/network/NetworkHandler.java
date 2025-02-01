@@ -51,11 +51,11 @@ public class NetworkHandler {
     registrar.playToServer(CPacketOpenVanilla.TYPE, CPacketOpenVanilla.STREAM_CODEC,
         CuriosServerPayloadHandler.getInstance()::handleOpenVanilla);
     registrar.playToServer(CPacketPage.TYPE, CPacketPage.STREAM_CODEC,
-        CuriosServerPayloadHandler.getInstance()::handlePage);
+        (cPacketPage, iPayloadContext) -> {});
     registrar.playToServer(CPacketToggleRender.TYPE, CPacketToggleRender.STREAM_CODEC,
         CuriosServerPayloadHandler.getInstance()::handlerToggleRender);
     registrar.playToServer(CPacketToggleCosmetics.TYPE, CPacketToggleCosmetics.STREAM_CODEC,
-        CuriosServerPayloadHandler.getInstance()::handlerToggleCosmetics);
+        (cPacketToggleCosmetics, iPayloadContext) -> {});
 
     // Server Packets
     registrar.playToClient(SPacketSyncStack.TYPE, SPacketSyncStack.STREAM_CODEC,

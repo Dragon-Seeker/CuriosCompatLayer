@@ -35,8 +35,8 @@ public class MixinPiglinAi {
   private static void curios$isWearingGold(LivingEntity livingEntity,
                                            CallbackInfoReturnable<Boolean> cir) {
 
-    if (CuriosUtilMixinHooks.canNeutralizePiglins(livingEntity)) {
-      cir.setReturnValue(true);
-    }
+//    if (CuriosUtilMixinHooks.canNeutralizePiglins(livingEntity)) {
+//      cir.setReturnValue(true);
+//    }
   }
 }

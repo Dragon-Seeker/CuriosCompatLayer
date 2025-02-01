@@ -24,6 +24,10 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import java.util.HashSet;
 import java.util.Set;
+
+import io.wispforest.accessories.Accessories;
+import io.wispforest.accessories.networking.server.NukeAccessories;
+import io.wispforest.accessories.networking.server.SyncCosmeticToggle;
 import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
@@ -51,6 +55,7 @@ import top.theillusivec4.curios.common.network.client.CPacketToggleCosmetics;
 import top.theillusivec4.curios.common.network.client.CPacketToggleRender;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncRender;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncStack;
+import top.theillusivec4.curios.compat.ConversionUtils;
 
 public class CuriosServerPayloadHandler {
 
@@ -63,23 +68,29 @@ public class CuriosServerPayloadHandler {
   public void handlerToggleRender(final CPacketToggleRender data, final IPayloadContext ctx) {
     ctx.enqueueWork(() -> {
       Player player = ctx.player();
-      CuriosApi.getCuriosInventory(player)
-          .flatMap(handler -> handler.getStacksHandler(data.identifier()))
-          .ifPresent(stacksHandler -> {
-            NonNullList<Boolean> renderStatuses = stacksHandler.getRenders();
 
-            if (renderStatuses.size() > data.index()) {
-              boolean value = !renderStatuses.get(data.index());
-              renderStatuses.set(data.index(), value);
-              PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
-                  new SPacketSyncRender(player.getId(), data.identifier(), data.index(), value));
-            }
-          });
+      var packet = new SyncCosmeticToggle(ctx.player().getId(), ConversionUtils.convertSlotToA(data.identifier()), data.index());
+
+      if (true) {
+        SyncCosmeticToggle.handlePacket(packet, player);
+      } else {
+        CuriosApi.getCuriosInventory(player)
+                .flatMap(handler -> handler.getStacksHandler(data.identifier()))
+                .ifPresent(stacksHandler -> {
+                  NonNullList<Boolean> renderStatuses = stacksHandler.getRenders();
+
+                  if (renderStatuses.size() > data.index()) {
+                    boolean value = !renderStatuses.get(data.index());
+                    renderStatuses.set(data.index(), value);
+                    PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                            new SPacketSyncRender(player.getId(), data.identifier(), data.index(), value));
+                  }
+                });
+      }
     });
   }
 
-  public void handlePage(final CPacketPage data,
-                         final IPayloadContext ctx) {
+  public void handlePage(final CPacketPage data, final IPayloadContext ctx) {
     ctx.enqueueWork(() -> {
       Player player = ctx.player();
       AbstractContainerMenu container = player.containerMenu;
@@ -133,14 +144,19 @@ public class CuriosServerPayloadHandler {
       Player player = ctx.player();
 
       if (player instanceof ServerPlayer serverPlayer) {
-        ItemStack stack =
-            player.isCreative() ? data.carried() : player.containerMenu.getCarried();
-        player.containerMenu.setCarried(ItemStack.EMPTY);
-        player.openMenu(new CuriosContainerProvider());
+        if (true) {
+          // TODO: ADJUST THIS CODE TO ACTUALLY HANDLE THE GIVEN STACK WITHIN THE FUTURE
+          Accessories.askPlayerForVariant(serverPlayer);
+        } else {
+          ItemStack stack =
+                  player.isCreative() ? data.carried() : player.containerMenu.getCarried();
+          player.containerMenu.setCarried(ItemStack.EMPTY);
+          player.openMenu(new CuriosContainerProvider());
 
-        if (!stack.isEmpty()) {
-          player.containerMenu.setCarried(stack);
-          PacketDistributor.sendToPlayer(serverPlayer, new SPacketGrabbedItem(stack));
+          if (!stack.isEmpty()) {
+            player.containerMenu.setCarried(stack);
+            PacketDistributor.sendToPlayer(serverPlayer, new SPacketGrabbedItem(stack));
+          }
         }
       }
     });
@@ -149,56 +165,61 @@ public class CuriosServerPayloadHandler {
   public void handleDestroyPacket(final CPacketDestroy data, final IPayloadContext ctx) {
     ctx.enqueueWork(() -> {
       Player player = ctx.player();
-      CuriosApi.getCuriosInventory(player)
-          .ifPresent(handler -> handler.getCurios().values().forEach(stacksHandler -> {
-            IDynamicStackHandler stackHandler = stacksHandler.getStacks();
-            IDynamicStackHandler cosmeticStackHandler = stacksHandler.getCosmeticStacks();
-            String id = stacksHandler.getIdentifier();
 
-            for (int i = stackHandler.getSlots() - 1; i >= 0; i--) {
-              NonNullList<Boolean> renderStates = stacksHandler.getRenders();
-              SlotContext slotContext = new SlotContext(id, player, i, false,
-                  renderStates.size() > i && renderStates.get(i));
-              ItemStack stack = stackHandler.getStackInSlot(i);
-              Multimap<Holder<Attribute>, AttributeModifier> map =
-                  CuriosApi.getAttributeModifiers(slotContext, CuriosApi.getSlotId(slotContext),
-                      stack);
-              Multimap<String, AttributeModifier> slots = HashMultimap.create();
-              Set<Holder<Attribute>> toRemove = new HashSet<>();
-              AttributeMap attributeMap = player.getAttributes();
+      if (true) {
+        NukeAccessories.handlePacket(new NukeAccessories(), player);
+      } else {
+        CuriosApi.getCuriosInventory(player)
+                .ifPresent(handler -> handler.getCurios().values().forEach(stacksHandler -> {
+                  IDynamicStackHandler stackHandler = stacksHandler.getStacks();
+                  IDynamicStackHandler cosmeticStackHandler = stacksHandler.getCosmeticStacks();
+                  String id = stacksHandler.getIdentifier();
 
-              for (Holder<Attribute> attribute : map.keySet()) {
+                  for (int i = stackHandler.getSlots() - 1; i >= 0; i--) {
+                    NonNullList<Boolean> renderStates = stacksHandler.getRenders();
+                    SlotContext slotContext = new SlotContext(id, player, i, false,
+                            renderStates.size() > i && renderStates.get(i));
+                    ItemStack stack = stackHandler.getStackInSlot(i);
+                    Multimap<Holder<Attribute>, AttributeModifier> map =
+                            CuriosApi.getAttributeModifiers(slotContext, CuriosApi.getSlotId(slotContext),
+                                    stack);
+                    Multimap<String, AttributeModifier> slots = HashMultimap.create();
+                    Set<Holder<Attribute>> toRemove = new HashSet<>();
+                    AttributeMap attributeMap = player.getAttributes();
 
-                if (attribute.value() instanceof SlotAttribute wrapper) {
-                  slots.putAll(wrapper.getIdentifier(), map.get(attribute));
-                  toRemove.add(attribute);
-                }
-              }
+                    for (Holder<Attribute> attribute : map.keySet()) {
 
-              for (Holder<Attribute> attribute : toRemove) {
-                map.removeAll(attribute);
-              }
+                      if (attribute.value() instanceof SlotAttribute wrapper) {
+                        slots.putAll(wrapper.getIdentifier(), map.get(attribute));
+                        toRemove.add(attribute);
+                      }
+                    }
 
-              map.forEach((key, value) -> {
-                AttributeInstance attInst = attributeMap.getInstance(key);
+                    for (Holder<Attribute> attribute : toRemove) {
+                      map.removeAll(attribute);
+                    }
 
-                if (attInst != null) {
-                  attInst.removeModifier(value);
-                }
-              });
-              handler.removeSlotModifiers(slots);
-              CuriosApi.getCurio(stack)
-                  .ifPresent(curio -> curio.onUnequip(slotContext, stack));
-              stackHandler.setStackInSlot(i, ItemStack.EMPTY);
-              PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
-                  new SPacketSyncStack(player.getId(), id, i, ItemStack.EMPTY,
-                      SPacketSyncStack.HandlerType.EQUIPMENT.ordinal(), new CompoundTag()));
-              cosmeticStackHandler.setStackInSlot(i, ItemStack.EMPTY);
-              PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
-                  new SPacketSyncStack(player.getId(), id, i, ItemStack.EMPTY,
-                      SPacketSyncStack.HandlerType.COSMETIC.ordinal(), new CompoundTag()));
-            }
-          }));
+                    map.forEach((key, value) -> {
+                      AttributeInstance attInst = attributeMap.getInstance(key);
+
+                      if (attInst != null) {
+                        attInst.removeModifier(value);
+                      }
+                    });
+                    handler.removeSlotModifiers(slots);
+                    CuriosApi.getCurio(stack)
+                            .ifPresent(curio -> curio.onUnequip(slotContext, stack));
+                    stackHandler.setStackInSlot(i, ItemStack.EMPTY);
+                    PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                            new SPacketSyncStack(player.getId(), id, i, ItemStack.EMPTY,
+                                    SPacketSyncStack.HandlerType.EQUIPMENT.ordinal(), new CompoundTag()));
+                    cosmeticStackHandler.setStackInSlot(i, ItemStack.EMPTY);
+                    PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                            new SPacketSyncStack(player.getId(), id, i, ItemStack.EMPTY,
+                                    SPacketSyncStack.HandlerType.COSMETIC.ordinal(), new CompoundTag()));
+                  }
+                }));
+      }
     });
   }
 }
