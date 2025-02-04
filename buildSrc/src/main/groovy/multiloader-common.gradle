@@ -3,7 +3,7 @@ plugins {
     id 'maven-publish'
 }
 
-version = "${version}-${rootProject.cc_layer_version}+${rootProject.minecraft_version}-${project.name}"
+version = "${rootProject.version}-${rootProject.cc_layer_version}+${rootProject.minecraft_version}-${project.name}"
 group = group
 
 base {
@@ -112,7 +112,7 @@ compileJava {
 
 processResources {
     def expandProps = [
-            "version": version,
+            "version": "${rootProject.version}+${rootProject.minecraft_version}",
             "group": project.group, //Else we target the task's group.
             "minecraft_version": minecraft_version,
             "minecraft_version_range": minecraft_version_range,
