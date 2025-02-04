@@ -44,6 +44,8 @@ public class AccessoriesEventHooks {
         });
 
         ContainersChangeCallback.EVENT.register((livingEntity, capability, changedContainers) -> {
+            if (changedContainers.isEmpty()) return;
+
             var convertedSlots = changedContainers.keySet().stream()
                     .map(container -> ConversionUtils.convertSlotToC(container.getSlotName()))
                     .collect(Collectors.toCollection(LinkedHashSet::new));
