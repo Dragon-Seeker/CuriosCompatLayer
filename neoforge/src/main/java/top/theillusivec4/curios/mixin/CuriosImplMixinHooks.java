@@ -335,7 +335,7 @@ public class CuriosImplMixinHooks {
     SlotType slotType = ctx.slotType();
 
     try {
-      AccessoriesAPI.getPredicateResults(predicates, level, livingEntity, slotType, ctx.index(), slotResult.stack());
+      return AccessoriesAPI.getPredicateResults(predicates, level, livingEntity, slotType, ctx.index(), slotResult.stack());
     } catch (Exception ignored) {}
 
     return false;
