@@ -6,6 +6,9 @@ import org.jetbrains.annotations.NotNull;
 import top.theillusivec4.curios.api.type.ISlotType;
 import top.theillusivec4.curios.api.type.capability.ICurio;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public record AccessoriesBasedCurioSlot(SlotType slotType) implements ISlotType {
 
     @Override public boolean useNativeGui() { return true; }
@@ -35,6 +38,13 @@ public record AccessoriesBasedCurioSlot(SlotType slotType) implements ISlotType 
     @Override
     public int getSize() {
         return this.slotType.amount();
+    }
+
+    @Override
+    public Set<ResourceLocation> getValidators() {
+        return this.slotType.validators().stream()
+                .map(ConversionUtils::convertToC)
+                .collect(Collectors.toSet());
     }
 
     @Override
