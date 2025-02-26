@@ -1,7 +1,11 @@
 package top.theillusivec4.curios.compat;
 
+import io.wispforest.accessories.Accessories;
 import io.wispforest.accessories.api.Accessory;
 import io.wispforest.accessories.api.slot.SlotType;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.capabilities.ICapabilityProvider;
 import net.neoforged.neoforge.common.util.TriState;
@@ -19,6 +23,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class NeoConversionUtils {
+
+    public static final TagKey<Item> ALL_CURIOS_ITEMS = TagKey.create(Registries.ITEM, Accessories.of("all_curios_items"));
+
     public static Accessory convertToA(ICurioItem curioItem) {
         return new AccessoryFromCurio(stack -> new ItemizedCurioCapability(curioItem, stack));
     }

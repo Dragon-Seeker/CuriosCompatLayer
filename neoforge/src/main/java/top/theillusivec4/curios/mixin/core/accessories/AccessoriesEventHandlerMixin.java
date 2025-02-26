@@ -3,13 +3,14 @@ package top.theillusivec4.curios.mixin.core.accessories;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import io.wispforest.accessories.api.AccessoriesAPI;
+import io.wispforest.accessories.api.Accessory;
 import io.wispforest.accessories.api.slot.SlotReference;
 import io.wispforest.accessories.impl.AccessoriesEventHandler;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import top.theillusivec4.curios.compat.AccessoriesBasedCurioSlot;
 import top.theillusivec4.curios.compat.AccessoryFromCurio;
+import top.theillusivec4.curios.compat.NeoConversionUtils;
 
 @Mixin(AccessoriesEventHandler.class)
 public abstract class AccessoriesEventHandlerMixin {
@@ -25,5 +26,14 @@ public abstract class AccessoriesEventHandlerMixin {
         var slotType = reference.type();
 
         return AccessoriesAPI.getPredicateResults(slotType.validators(), reference.entity().level(), reference.entity(), slotType, 0, stack);
+    }
+
+    @WrapOperation(method = {"attemptEquipFromUse", "attemptEquipOnEntity"}, at = @At(value = "INVOKE", target = "Lio/wispforest/accessories/api/Accessory;canEquipFromUse(Lnet/minecraft/world/item/ItemStack;)Z"))
+    private static boolean cclayer$preventEquippingForCuriosItems(Accessory instance, ItemStack stack, Operation<Boolean> original) {
+        if (AccessoriesAPI.isDefaultAccessory(instance) && stack.is(NeoConversionUtils.ALL_CURIOS_ITEMS)) {
+            return false;
+        }
+
+        return original.call(instance, stack);
     }
 }

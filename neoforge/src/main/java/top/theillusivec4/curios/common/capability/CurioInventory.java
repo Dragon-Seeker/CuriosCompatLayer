@@ -85,7 +85,7 @@ public class CurioInventory implements INBTSerializable<CompoundTag> {
     } else {
       this.markDeserialized = false;
 
-      if (this.deserialized.getBoolean("AccessoriesEncoded")) return;
+      if (this.deserialized.getBoolean("AccessoriesEncoded") || this.deserialized.isEmpty()) return;
 
       readData(capability.entity(), capability, this.deserialized.getList("Curios", Tag.TAG_COMPOUND));
 

@@ -3,6 +3,7 @@ package top.theillusivec4.curios.mixin.core.accessories;
 import com.llamalad7.mixinextras.sugar.Share;
 import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import com.mojang.logging.LogUtils;
+import io.wispforest.accessories.Accessories;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -53,14 +54,14 @@ public abstract class TagGroupLoaderMixin {
 
     @Inject(method = "load", at = @At("TAIL"))
     public void injectValues(ResourceManager resourceManager, CallbackInfoReturnable<Map<ResourceLocation, List<TagLoader.EntryWithSource>>> cir,
-                             @Share(namespace = "accessories", value = "trinketToAccessoryCalls") LocalRef<Map<ResourceLocation, Triple<ResourceLocation, List<TagLoader.EntryWithSource>, BiConsumer<ResourceLocation, List<TagLoader.EntryWithSource>>>>> trinketToAccessoryCalls_share,
-                             @Share(namespace = "accessories", value = "accessoryToTrinketCalls") LocalRef<Map<ResourceLocation, Triple<ResourceLocation, List<TagLoader.EntryWithSource>, BiConsumer<ResourceLocation, List<TagLoader.EntryWithSource>>>>> accessoryToTrinketCalls_share) {
+                             @Share(namespace = "accessories", value = "curiosToAccessoryCalls") LocalRef<Map<ResourceLocation, Triple<ResourceLocation, List<TagLoader.EntryWithSource>, BiConsumer<ResourceLocation, List<TagLoader.EntryWithSource>>>>> curiosToAccessoryCalls_share,
+                             @Share(namespace = "accessories", value = "accessoryToCuriosCalls") LocalRef<Map<ResourceLocation, Triple<ResourceLocation, List<TagLoader.EntryWithSource>, BiConsumer<ResourceLocation, List<TagLoader.EntryWithSource>>>>> accessoryToCuriosCalls_share) {
         if (!Registries.tagsDirPath(BuiltInRegistries.ITEM.key()).equals(directory)) return;
 
         var map = cir.getReturnValue();
 
-        var trinketToAccessoryCalls = trinketToAccessoryCalls_share.get();
-        var accessoryToTrinketCalls = accessoryToTrinketCalls_share.get();
+        var curiosToAccessoryCalls = curiosToAccessoryCalls_share.get();
+        var accessoryToCuriosCalls = accessoryToCuriosCalls_share.get();
 
         TriConsumer<ResourceLocation, ResourceLocation, List<TagLoader.EntryWithSource>> addCallback = (fromLocation, toLocation, tagEntries) -> {
             LOGGER.warn("Adding Entries from [{}] to [{}]: \n     {}", fromLocation, toLocation, tagEntries);
@@ -75,18 +76,18 @@ public abstract class TagGroupLoaderMixin {
 
                 var accessoryTag = ResourceLocation.fromNamespaceAndPath("accessories", slotName);
 
-                trinketToAccessoryCalls.put(accessoryTag, Triple.of(location, entriesCopy, (fromLocation, tagEntries) -> addCallback.accept(fromLocation, accessoryTag, tagEntries)));
+                curiosToAccessoryCalls.put(accessoryTag, Triple.of(location, entriesCopy, (fromLocation, tagEntries) -> addCallback.accept(fromLocation, accessoryTag, tagEntries)));
             } else if(location.getNamespace().equals("accessories")) {
                 var slotName = ConversionUtils.convertSlotToC(location.getPath());
 
                 var curiosTag = ResourceLocation.fromNamespaceAndPath("curios", slotName);
 
-                accessoryToTrinketCalls.put(location, Triple.of(location, entriesCopy, (fromLocation, tagEntries) -> addCallback.accept(fromLocation, curiosTag, tagEntries)));
+                accessoryToCuriosCalls.put(location, Triple.of(location, entriesCopy, (fromLocation, tagEntries) -> addCallback.accept(fromLocation, curiosTag, tagEntries)));
             }
         });
     }
 
-    @Inject(method = "load", at = @At("TAIL"), order = 1100)
+    @Inject(method = "load", at = @At("TAIL"), order = 1099)
     public void handleShares(ResourceManager resourceManager, CallbackInfoReturnable<Map<ResourceLocation, List<TagLoader.EntryWithSource>>> cir,
                             @Share(namespace = "accessories", value = "curiosToAccessoryCalls") LocalRef<Map<ResourceLocation, Triple<ResourceLocation, List<TagLoader.EntryWithSource>, BiConsumer<ResourceLocation, List<TagLoader.EntryWithSource>>>>> curiosToAccessoryCalls_share,
                             @Share(namespace = "accessories", value = "accessoryToCuriosCalls") LocalRef<Map<ResourceLocation, Triple<ResourceLocation, List<TagLoader.EntryWithSource>, BiConsumer<ResourceLocation, List<TagLoader.EntryWithSource>>>>> accessoryToCuriosCalls_share,
@@ -119,6 +120,12 @@ public abstract class TagGroupLoaderMixin {
             Optional.ofNullable(accessoryToCuriosCalls.get(accessoryLocation)).ifPresent(triple -> triple.getRight().accept(triple.getLeft(), triple.getMiddle()));
             Optional.ofNullable(accessoryToTrinketCalls.get(accessoryLocation)).ifPresent(triple -> triple.getRight().accept(triple.getLeft(), triple.getMiddle()));
         }
+
+        var currentTags = cir.getReturnValue();
+
+        var allCruiosTagList = currentTags.computeIfAbsent(Accessories.of("all_curios_items"), location -> new ArrayList<>());
+
+        curiosToAccessoryCalls.forEach((location, triple) -> allCruiosTagList.addAll(triple.getMiddle()));
 
         curiosToAccessoryCalls_share.set(new HashMap<>());
         accessoryToCuriosCalls_share.set(new HashMap<>());
