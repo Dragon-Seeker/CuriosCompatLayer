@@ -45,6 +45,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModLoader;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
@@ -67,6 +68,8 @@ import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.CuriosCapability;
 import top.theillusivec4.curios.api.SlotTypeMessage;
 import top.theillusivec4.curios.api.client.CuriosRendererRegistry;
+import top.theillusivec4.curios.api.extensions.RegisterCuriosExtensionsEvent;
+import top.theillusivec4.curios.api.type.ISlotType;
 import top.theillusivec4.curios.api.event.*;
 import top.theillusivec4.curios.api.type.capability.ICurio;
 import top.theillusivec4.curios.api.type.capability.ICurioItem;
@@ -125,6 +128,7 @@ public class Curios {
   private void setup(FMLCommonSetupEvent evt) {
     CuriosApi.setCuriosHelper(new CuriosHelper());
     //NeoForge.EVENT_BUS.register(new CuriosEventHandler());
+    ModLoader.postEventWrapContainerInModOrder(new RegisterCuriosExtensionsEvent());
     evt.enqueueWork(CuriosSelectorOptions::register);
 
     AccessoriesEventHooks.initAccessoriesEventHooks();
