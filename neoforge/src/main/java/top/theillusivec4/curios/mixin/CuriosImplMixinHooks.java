@@ -295,7 +295,7 @@ public class CuriosImplMixinHooks {
   private static final Map<String, UUID> UUIDS = new HashMap<>();
 
   public static ResourceLocation getSlotId(SlotContext slotContext) {
-    String key = slotContext.identifier() + slotContext.index();
+    String key = slotContext.identifier().replace(":", "-") + slotContext.index();
     return ResourceLocation.fromNamespaceAndPath(CuriosConstants.MOD_ID, key);
   }
 
