@@ -44,6 +44,9 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.util.INBTSerializable;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
+import top.theillusivec4.curios.api.CuriosApi;
+import top.theillusivec4.curios.api.SlotResult;
+import top.theillusivec4.curios.api.type.ISlotType;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.compat.AccessoriesBasedStackHandler;
@@ -61,6 +64,11 @@ public class CurioInventory implements INBTSerializable<CompoundTag> {
   Set<ICurioStacksHandler> updates = new HashSet<>();
   CompoundTag deserialized = new CompoundTag();
   boolean markDeserialized = false;
+
+  final Cache<String, Pair<Long, Optional<SlotResult>>> firstCurioCache =
+      CacheBuilder.newBuilder().maximumSize(100).expireAfterWrite(1, TimeUnit.SECONDS).build();
+  final Cache<String, Pair<Long, List<SlotResult>>> findCuriosCache =
+      CacheBuilder.newBuilder().maximumSize(100).expireAfterWrite(1, TimeUnit.SECONDS).build();
 
   public List<ItemStack> invalidStacks() {
     return this.holder != null ? this.holder.invalidStacks : List.of();
@@ -174,13 +182,18 @@ public class CurioInventory implements INBTSerializable<CompoundTag> {
     LivingEntity livingEntity = curiosItemHandler.getWearer();
 
     if (!this.markDeserialized) {
-      SortedSet<ISlotType> sorted =
-          new TreeSet<>(CuriosApi.getEntitySlots(livingEntity).values());
+      SortedSet<ISlotType> sorted = new TreeSet<>(CuriosApi.getEntitySlots(livingEntity).values());
 
       for (ISlotType slotType : sorted) {
-        this.curios.put(slotType.getIdentifier(),
-            new CurioStacksHandler(curiosItemHandler, slotType.getIdentifier(), slotType.getSize(),
-                slotType.useNativeGui(), slotType.hasCosmetic(), slotType.canToggleRendering(),
+        this.curios.put(
+            slotType.getIdentifier(),
+            new CurioStacksHandler(
+                curiosItemHandler,
+                slotType.getIdentifier(),
+                slotType.getSize(),
+                slotType.useNativeGui(),
+                slotType.hasCosmetic(),
+                slotType.canToggleRendering(),
                 slotType.getDropRule()));
       }
     } else {
@@ -189,14 +202,19 @@ public class CurioInventory implements INBTSerializable<CompoundTag> {
       ListTag tagList = this.deserialized.getList("Curios", Tag.TAG_COMPOUND);
       Map<String, ICurioStacksHandler> curios = new LinkedHashMap<>();
       SortedMap<ISlotType, ICurioStacksHandler> sortedCurios = new TreeMap<>();
-      SortedSet<ISlotType> sorted =
-          new TreeSet<>(CuriosApi.getEntitySlots(livingEntity).values());
+      SortedSet<ISlotType> sorted = new TreeSet<>(CuriosApi.getEntitySlots(livingEntity).values());
 
       for (ISlotType slotType : sorted) {
-        sortedCurios.put(slotType,
-            new CurioStacksHandler(curiosItemHandler, slotType.getIdentifier(),
-                slotType.getSize(), slotType.useNativeGui(), slotType.hasCosmetic(),
-                slotType.canToggleRendering(), slotType.getDropRule()));
+        sortedCurios.put(
+            slotType,
+            new CurioStacksHandler(
+                curiosItemHandler,
+                slotType.getIdentifier(),
+                slotType.getSize(),
+                slotType.useNativeGui(),
+                slotType.hasCosmetic(),
+                slotType.canToggleRendering(),
+                slotType.getDropRule()));
       }
 
       for (int i = 0; i < tagList.size(); i++) {
@@ -208,56 +226,72 @@ public class CurioInventory implements INBTSerializable<CompoundTag> {
 
         Optional<ISlotType> optionalType =
             Optional.ofNullable(CuriosApi.getEntitySlots(livingEntity).get(identifier));
-        optionalType.ifPresent(slotType -> {
-          CurioStacksHandler newStacksHandler =
-              new CurioStacksHandler(curiosItemHandler, slotType.getIdentifier(),
-                  slotType.getSize(), slotType.useNativeGui(), slotType.hasCosmetic(),
-                  slotType.canToggleRendering(), slotType.getDropRule());
-          newStacksHandler.copyModifiers(prevStacksHandler);
-          int index = 0;
+        optionalType.ifPresent(
+            slotType -> {
+              CurioStacksHandler newStacksHandler =
+                  new CurioStacksHandler(
+                      curiosItemHandler,
+                      slotType.getIdentifier(),
+                      slotType.getSize(),
+                      slotType.useNativeGui(),
+                      slotType.hasCosmetic(),
+                      slotType.canToggleRendering(),
+                      slotType.getDropRule());
+              newStacksHandler.copyModifiers(prevStacksHandler);
+              int index = 0;
 
-          while (index < newStacksHandler.getSlots() && index < prevStacksHandler
-              .getSlots()) {
-            ItemStack prevStack = prevStacksHandler.getStacks().getStackInSlot(index);
+              while (index < newStacksHandler.getSlots() && index < prevStacksHandler.getSlots()) {
+                ItemStack prevStack = prevStacksHandler.getStacks().getStackInSlot(index);
 
-            if (!prevStack.isEmpty()) {
+                if (!prevStack.isEmpty()) {
 
-              if (newStacksHandler.getStacks().isItemValid(index, prevStack)) {
-                newStacksHandler.getStacks().setStackInSlot(index, prevStack);
-              } else {
-                this.curiosItemHandler.loseInvalidStack(prevStack);
+                  if (newStacksHandler.getStacks().isItemValid(index, prevStack)) {
+                    newStacksHandler.getStacks().setStackInSlot(index, prevStack);
+                  } else {
+                    this.curiosItemHandler.loseInvalidStack(prevStack);
+                  }
+                }
+                ItemStack prevCosmetic =
+                    prevStacksHandler.getCosmeticStacks().getStackInSlot(index);
+
+                if (!prevCosmetic.isEmpty()) {
+
+                  if (newStacksHandler.getStacks().isItemValid(index, prevCosmetic)) {
+                    newStacksHandler
+                        .getCosmeticStacks()
+                        .setStackInSlot(
+                            index, prevStacksHandler.getCosmeticStacks().getStackInSlot(index));
+                  } else {
+                    this.curiosItemHandler.loseInvalidStack(prevCosmetic);
+                  }
+                }
+                index++;
               }
-            }
-            ItemStack prevCosmetic = prevStacksHandler.getCosmeticStacks().getStackInSlot(index);
 
-            if (!prevCosmetic.isEmpty()) {
-
-              if (newStacksHandler.getStacks().isItemValid(index, prevCosmetic)) {
-                newStacksHandler.getCosmeticStacks().setStackInSlot(index,
+              while (index < prevStacksHandler.getSlots()) {
+                this.curiosItemHandler.loseInvalidStack(
+                    prevStacksHandler.getStacks().getStackInSlot(index));
+                this.curiosItemHandler.loseInvalidStack(
                     prevStacksHandler.getCosmeticStacks().getStackInSlot(index));
-              } else {
-                this.curiosItemHandler.loseInvalidStack(prevCosmetic);
+                index++;
               }
-            }
-            index++;
-          }
+              sortedCurios.put(slotType, newStacksHandler);
 
-          while (index < prevStacksHandler.getSlots()) {
-            this.curiosItemHandler.loseInvalidStack(
-                prevStacksHandler.getStacks().getStackInSlot(index));
-            this.curiosItemHandler.loseInvalidStack(
-                prevStacksHandler.getCosmeticStacks().getStackInSlot(index));
-            index++;
-          }
-          sortedCurios.put(slotType, newStacksHandler);
+              for (int j = 0;
+                   j < newStacksHandler.getRenders().size()
+                       && j < prevStacksHandler.getRenders().size();
+                   j++) {
+                newStacksHandler.getRenders().set(j, prevStacksHandler.getRenders().get(j));
+              }
 
-          for (int j = 0;
-               j < newStacksHandler.getRenders().size() &&
-                   j < prevStacksHandler.getRenders()
-                       .size(); j++) {
-            newStacksHandler.getRenders().set(j, prevStacksHandler.getRenders().get(j));
-          }
-        });
+              for (int j = 0;
+                   j < newStacksHandler.getActiveStates().size()
+                       && j < prevStacksHandler.getActiveStates().size();
+                   j++) {
+                newStacksHandler.getActiveStates()
+                    .set(j, prevStacksHandler.getActiveStates().get(j));
+              }
+            });
 
         if (optionalType.isEmpty()) {
           IDynamicStackHandler stackHandler = prevStacksHandler.getStacks();
@@ -301,15 +335,20 @@ public class CurioInventory implements INBTSerializable<CompoundTag> {
 
   @Override
   public CompoundTag serializeNBT(@Nonnull HolderLookup.Provider provider) {
+
+    if (!this.deserialized.isEmpty()) {
+      return this.deserialized;
+    }
     CompoundTag compound = new CompoundTag();
 
     ListTag taglist = new ListTag();
-    this.asMap().forEach((key, stacksHandler) -> {
-      CompoundTag tag = new CompoundTag();
-      tag.put("StacksHandler", stacksHandler.serializeNBT());
-      tag.putString("Identifier", key);
-      taglist.add(tag);
-    });
+    this.asMap().forEach(
+        (key, stacksHandler) -> {
+          CompoundTag tag = new CompoundTag();
+          tag.put("StacksHandler", stacksHandler.serializeNBT());
+          tag.putString("Identifier", key);
+          taglist.add(tag);
+        });
     compound.put("Curios", taglist);
     compound.putBoolean("AccessoriesEncoded", true);
     return compound;

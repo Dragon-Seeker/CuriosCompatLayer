@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 Prior to version 5.2.0, this projected used [Forge Recommended Versioning](https://mcforge.readthedocs.io/en/latest/conventions/versioning/).
 
+## [9.5.1+1.21.1] - 2025.05.14
+### Fixed
+- Fixed crash on world load after updating from `9.4.2+1.21.1` or below [#520](https://github.com/TheIllusiveC4/Curios/issues/520)
+
+## [9.5.0+1.21.1] - 2025.05.14
+### Added
+- [API] Added active states for slots to allow developers to enable or disable slots on entities during gameplay,
+accessible through new methods `ICuriosItemHandler#isSlotActive` and `ICuriosItemHandler#setSlotActive`
+### Changed
+- Updated `ja_jp` localization [#513](https://github.com/TheIllusiveC4/Curios/pull/513)
+
+## [9.4.2+1.21.1] - 2025.04.08
+### Changed
+- `Inventory#contains(Predicate<ItemStack>)` and `Inventory#hasAnyMatching(Predicate<ItemStack>)` now also check the curios inventory
+
+## [9.4.1+1.21.1] - 2025.04.04
+### Fixed
+- Fixed missing inventory when a player fails to join a server [#481](https://github.com/TheIllusiveC4/Curios/issues/481)
+- Fixed Curios panel rendering beneath EMI themed panels [#503](https://github.com/TheIllusiveC4/Curios/issues/503)
+
+## [9.4.0+1.21.1] - 2025.03.24
+### Changed
+- Updated tooltip logic to follow NeoForge conventions, including the use of `AddAttributeTooltipsEvent` and `GatherSkippedAttributeTooltipsEvent` [#496](https://github.com/TheIllusiveC4/Curios/issues/496)
+### Fixed
+- Fixed previous slot modifiers persisting after deserialization which caused inconsistent behavior when using extra slots
+- Fixed caching errors that caused certain functions to misidentify curio inventory contents
+- Fixed deprecated usage of `ICurio#getDropRule`
+- Fixed datagen output not being deterministic [#497](https://github.com/TheIllusiveC4/Curios/issues/497)
+- Fixed missing slot localization fallbacks on item tooltips
+- Fixed slot modifier tooltip localizations
+- Fixed `curios:set_curio_attributes` loot table function
+
 ## [9.3.1+1.21.1] - 2025.03.12
 ### Fixed
 - Fixed slot tooltip rendering

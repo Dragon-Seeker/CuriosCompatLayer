@@ -36,6 +36,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -44,16 +45,20 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.apache.commons.lang3.EnumUtils;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.SlotAttribute;
 import top.theillusivec4.curios.api.SlotContext;
+import top.theillusivec4.curios.api.event.CurioChangeEvent;
 import top.theillusivec4.curios.api.event.SlotModifiersUpdatedEvent;
 import top.theillusivec4.curios.api.type.ICuriosMenu;
 import top.theillusivec4.curios.api.type.capability.ICurio;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler;
+import top.theillusivec4.curios.common.CuriosRegistry;
+import top.theillusivec4.curios.common.network.server.sync.SPacketSyncActiveState;
 
 public class CurioStacksHandler implements ICurioStacksHandler {
 
@@ -77,14 +82,23 @@ public class CurioStacksHandler implements ICurioStacksHandler {
   private ICurio.DropRule dropRule;
   private boolean update;
   private NonNullList<Boolean> renderHandler;
+  private NonNullList<Boolean> activeStates;
+  private NonNullList<Boolean> previousActiveStates;
+
+  private int clearCacheTick = -1;
 
   public CurioStacksHandler(ICuriosItemHandler itemHandler, String identifier) {
     this(itemHandler, identifier, 1, true, false, true, ICurio.DropRule.DEFAULT);
   }
 
-  public CurioStacksHandler(ICuriosItemHandler itemHandler, String identifier, int size,
-                            boolean visible, boolean cosmetic, boolean canToggleRender,
-                            ICurio.DropRule dropRule) {
+  public CurioStacksHandler(
+      ICuriosItemHandler itemHandler,
+      String identifier,
+      int size,
+      boolean visible,
+      boolean cosmetic,
+      boolean canToggleRender,
+      ICurio.DropRule dropRule) {
     this.baseSize = size;
     this.visible = visible;
     this.cosmetic = cosmetic;
@@ -93,12 +107,28 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     this.canToggleRender = canToggleRender;
     this.dropRule = dropRule;
     this.renderHandler = NonNullList.withSize(size, true);
-    this.stackHandler = new DynamicStackHandler(size,
-        (index) -> new SlotContext(identifier, itemHandler.getWearer(), index, false,
-            this.getRenders().get(index)));
-    this.cosmeticStackHandler = new DynamicStackHandler(size,
-        (index) -> new SlotContext(identifier, itemHandler.getWearer(), index, true,
-            this.getRenders().get(index)));
+    this.activeStates = NonNullList.withSize(size, true);
+    this.previousActiveStates = NonNullList.withSize(size, true);
+    this.stackHandler =
+        new DynamicStackHandler(
+            size,
+            (index) ->
+                new SlotContext(
+                    identifier,
+                    itemHandler.getWearer(),
+                    index,
+                    false,
+                    this.getRenders().get(index)));
+    this.cosmeticStackHandler =
+        new DynamicStackHandler(
+            size,
+            (index) ->
+                new SlotContext(
+                    identifier,
+                    itemHandler.getWearer(),
+                    index,
+                    true,
+                    this.getRenders().get(index)));
   }
 
   @Override
@@ -117,6 +147,144 @@ public class CurioStacksHandler implements ICurioStacksHandler {
   public NonNullList<Boolean> getRenders() {
     this.update();
     return this.renderHandler;
+  }
+
+  @Override
+  public NonNullList<Boolean> getActiveStates() {
+    this.update();
+    return this.activeStates;
+  }
+
+  @Override
+  public void updateActiveState(int index) {
+    this.update();
+    LivingEntity livingEntity = this.itemHandler.getWearer();
+
+    if (livingEntity != null && !livingEntity.level().isClientSide()) {
+
+      if (this.activeStates.size() <= index) {
+        return;
+      }
+      boolean current = this.activeStates.get(index);
+      boolean previous = this.previousActiveStates.get(index);
+
+      if (current == previous) {
+        return;
+      }
+
+      if (!previous) {
+        activateSlot(index);
+      } else {
+        deactivateSlot(index);
+      }
+    }
+  }
+
+  private void deactivateSlot(int index) {
+    this.previousActiveStates.set(index, false);
+    LivingEntity livingEntity = this.itemHandler.getWearer();
+    PacketDistributor.sendToPlayersTrackingEntityAndSelf(livingEntity, new SPacketSyncActiveState(
+        livingEntity.getId(), identifier, index, false));
+    NonNullList<Boolean> renderStates = this.getRenders();
+    SlotContext slotContext =
+        new SlotContext(
+            identifier,
+            livingEntity,
+            index,
+            false,
+            renderStates.size() > index && renderStates.get(index));
+    IDynamicStackHandler stacks = this.getStacks();
+    ItemStack stack = stacks.getStackInSlot(index);
+    NeoForge.EVENT_BUS.post(
+        new CurioChangeEvent(livingEntity, identifier, index, stack, ItemStack.EMPTY));
+    ResourceLocation id = CuriosApi.getSlotId(slotContext);
+    AttributeMap attributeMap = livingEntity.getAttributes();
+
+    if (!stack.isEmpty()) {
+      Multimap<Holder<Attribute>, AttributeModifier> map =
+          CuriosApi.getAttributeModifiers(slotContext, id, stack);
+      Multimap<String, AttributeModifier> slots = HashMultimap.create();
+      Set<Holder<Attribute>> toRemove = new HashSet<>();
+
+      for (Holder<Attribute> attribute : map.keySet()) {
+
+        if (attribute.value() instanceof SlotAttribute wrapper) {
+          slots.putAll(wrapper.getIdentifier(), map.get(attribute));
+          toRemove.add(attribute);
+        }
+      }
+
+      for (Holder<Attribute> attribute : toRemove) {
+        map.removeAll(attribute);
+      }
+      map.forEach(
+          (key, value) -> {
+            AttributeInstance attInst = attributeMap.getInstance(key);
+
+            if (attInst != null) {
+              attInst.removeModifier(value);
+            }
+          });
+      this.itemHandler.removeSlotModifiers(slots);
+      CuriosApi.getCurio(stack).ifPresent(curio -> curio.onUnequip(slotContext, stack));
+    }
+  }
+
+  private void activateSlot(int index) {
+    this.previousActiveStates.set(index, true);
+    LivingEntity livingEntity = this.itemHandler.getWearer();
+    PacketDistributor.sendToPlayersTrackingEntityAndSelf(
+        livingEntity,
+        new SPacketSyncActiveState(livingEntity.getId(), identifier, index, true));
+    NonNullList<Boolean> renderStates = this.getRenders();
+    SlotContext slotContext =
+        new SlotContext(
+            identifier,
+            livingEntity,
+            index,
+            false,
+            renderStates.size() > index && renderStates.get(index));
+    IDynamicStackHandler stacks = this.getStacks();
+    ItemStack stack = stacks.getStackInSlot(index);
+    NeoForge.EVENT_BUS.post(
+        new CurioChangeEvent(livingEntity, identifier, index, ItemStack.EMPTY, stack));
+    ResourceLocation id = CuriosApi.getSlotId(slotContext);
+    AttributeMap attributeMap = livingEntity.getAttributes();
+
+    if (!stack.isEmpty()) {
+      Multimap<Holder<Attribute>, AttributeModifier> map =
+          CuriosApi.getAttributeModifiers(slotContext, id, stack);
+      Multimap<String, AttributeModifier> slots = HashMultimap.create();
+      Set<Holder<Attribute>> toRemove = new HashSet<>();
+
+      for (Holder<Attribute> attribute : map.keySet()) {
+
+        if (attribute.value() instanceof SlotAttribute wrapper) {
+          slots.putAll(wrapper.getIdentifier(), map.get(attribute));
+          toRemove.add(attribute);
+        }
+      }
+
+      for (Holder<Attribute> attribute : toRemove) {
+        map.removeAll(attribute);
+      }
+      map.forEach(
+          (key, value) -> {
+            AttributeInstance attInst = attributeMap.getInstance(key);
+
+            if (attInst != null) {
+              attInst.addOrUpdateTransientModifier(value);
+            }
+          });
+      this.itemHandler.addTransientSlotModifiers(slots);
+      CuriosApi.getCurio(stack).ifPresent(curio -> curio.onEquip(slotContext, ItemStack.EMPTY));
+
+      if (livingEntity instanceof ServerPlayer) {
+        CuriosRegistry.EQUIP_TRIGGER
+            .get()
+            .trigger(slotContext, (ServerPlayer) livingEntity, stack);
+      }
+    }
   }
 
   @Override
@@ -173,11 +341,9 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     int current = mod != null ? (int) mod.amount() : 0;
     current += shift;
     AttributeModifier newModifier =
-        new AttributeModifier(LEGACY_ID, current,
-            AttributeModifier.Operation.ADD_VALUE);
+        new AttributeModifier(LEGACY_ID, current, AttributeModifier.Operation.ADD_VALUE);
     this.modifiers.put(newModifier.id(), newModifier);
-    Collection<AttributeModifier> modifiers =
-        this.getModifiersByOperation(newModifier.operation());
+    Collection<AttributeModifier> modifiers = this.getModifiersByOperation(newModifier.operation());
     List<AttributeModifier> ops = new ArrayList<>(modifiers);
 
     for (AttributeModifier op : ops) {
@@ -196,9 +362,10 @@ public class CurioStacksHandler implements ICurioStacksHandler {
   public CompoundTag serializeNBT() {
     CompoundTag compoundNBT = new CompoundTag();
     compoundNBT.putInt("SavedBaseSize", this.baseSize);
-    compoundNBT.put("Stacks",
-        this.stackHandler.serializeNBT(this.itemHandler.getWearer().registryAccess()));
-    compoundNBT.put("Cosmetics",
+    compoundNBT.put(
+        "Stacks", this.stackHandler.serializeNBT(this.itemHandler.getWearer().registryAccess()));
+    compoundNBT.put(
+        "Cosmetics",
         this.cosmeticStackHandler.serializeNBT(this.itemHandler.getWearer().registryAccess()));
 
     ListTag nbtTagList = new ListTag();
@@ -213,6 +380,18 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     nbt.put("Renders", nbtTagList);
     nbt.putInt("Size", this.renderHandler.size());
     compoundNBT.put("Renders", nbt);
+    nbtTagList = new ListTag();
+
+    for (int i = 0; i < this.activeStates.size(); i++) {
+      CompoundTag tag = new CompoundTag();
+      tag.putInt("Slot", i);
+      tag.putBoolean("ActiveState", this.activeStates.get(i));
+      nbtTagList.add(tag);
+    }
+    nbt = new CompoundTag();
+    nbt.put("ActiveStates", nbtTagList);
+    nbt.putInt("Size", this.activeStates.size());
+    compoundNBT.put("ActiveStates", nbt);
     compoundNBT.putBoolean("HasCosmetic", this.cosmetic);
     compoundNBT.putBoolean("Visible", this.visible);
     compoundNBT.putBoolean("RenderToggle", this.canToggleRender);
@@ -229,11 +408,12 @@ public class CurioStacksHandler implements ICurioStacksHandler {
 
     if (!this.modifiers.isEmpty()) {
       ListTag list = new ListTag();
-      this.modifiers.forEach((uuid, modifier) -> {
-        if (!this.persistentModifiers.containsKey(modifier.id())) {
-          list.add(modifier.save());
-        }
-      });
+      this.modifiers.forEach(
+          (uuid, modifier) -> {
+            if (!this.persistentModifiers.containsKey(modifier.id())) {
+              list.add(modifier.save());
+            }
+          });
       compoundNBT.put("CachedModifiers", list);
     }
     return compoundNBT;
@@ -247,20 +427,21 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     }
 
     if (nbt.contains("Stacks")) {
-      this.stackHandler.deserializeNBT(this.itemHandler.getWearer().registryAccess(),
-          nbt.getCompound("Stacks"));
+      this.stackHandler.deserializeNBT(
+          this.itemHandler.getWearer().registryAccess(), nbt.getCompound("Stacks"));
     }
 
     if (nbt.contains("Cosmetics")) {
-      this.cosmeticStackHandler.deserializeNBT(this.itemHandler.getWearer().registryAccess(),
-          nbt.getCompound("Cosmetics"));
+      this.cosmeticStackHandler.deserializeNBT(
+          this.itemHandler.getWearer().registryAccess(), nbt.getCompound("Cosmetics"));
     }
 
     if (nbt.contains("Renders")) {
       CompoundTag tag = nbt.getCompound("Renders");
-      this.renderHandler = NonNullList.withSize(
-          nbt.contains("Size", Tag.TAG_INT) ? nbt.getInt("Size") : this.stackHandler.getSlots(),
-          true);
+      this.renderHandler =
+          NonNullList.withSize(
+              nbt.contains("Size", Tag.TAG_INT) ? nbt.getInt("Size") : this.stackHandler.getSlots(),
+              true);
       ListTag tagList = tag.getList("Renders", Tag.TAG_COMPOUND);
 
       for (int i = 0; i < tagList.size(); i++) {
@@ -269,6 +450,27 @@ public class CurioStacksHandler implements ICurioStacksHandler {
 
         if (slot >= 0 && slot < this.renderHandler.size()) {
           this.renderHandler.set(slot, tags.getBoolean("Render"));
+        }
+      }
+    }
+
+    if (nbt.contains("ActiveStates")) {
+      CompoundTag tag = nbt.getCompound("ActiveStates");
+      this.activeStates = NonNullList.withSize(
+          nbt.contains("Size", Tag.TAG_INT) ? nbt.getInt("Size") : this.stackHandler.getSlots(),
+          true);
+      this.previousActiveStates = NonNullList.withSize(
+          nbt.contains("Size", Tag.TAG_INT) ? nbt.getInt("Size") : this.stackHandler.getSlots(),
+          true);
+      ListTag tagList = tag.getList("ActiveStates", Tag.TAG_COMPOUND);
+
+      for (int i = 0; i < tagList.size(); i++) {
+        CompoundTag tags = tagList.getCompound(i);
+        int slot = tags.getInt("Slot");
+
+        if (slot >= 0 && slot < this.activeStates.size()) {
+          this.activeStates.set(slot, tags.getBoolean("ActiveState"));
+          this.previousActiveStates.set(slot, tags.getBoolean("ActiveState"));
         }
       }
     }
@@ -324,9 +526,10 @@ public class CurioStacksHandler implements ICurioStacksHandler {
 
   public CompoundTag getSyncTag() {
     CompoundTag compoundNBT = new CompoundTag();
-    compoundNBT.put("Stacks",
-        this.stackHandler.serializeNBT(this.itemHandler.getWearer().registryAccess()));
-    compoundNBT.put("Cosmetics",
+    compoundNBT.put(
+        "Stacks", this.stackHandler.serializeNBT(this.itemHandler.getWearer().registryAccess()));
+    compoundNBT.put(
+        "Cosmetics",
         this.cosmeticStackHandler.serializeNBT(this.itemHandler.getWearer().registryAccess()));
 
     ListTag nbtTagList = new ListTag();
@@ -341,6 +544,18 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     nbt.put("Renders", nbtTagList);
     nbt.putInt("Size", this.renderHandler.size());
     compoundNBT.put("Renders", nbt);
+    nbtTagList = new ListTag();
+
+    for (int i = 0; i < this.activeStates.size(); i++) {
+      CompoundTag tag = new CompoundTag();
+      tag.putInt("Slot", i);
+      tag.putBoolean("ActiveState", this.activeStates.get(i));
+      nbtTagList.add(tag);
+    }
+    nbt = new CompoundTag();
+    nbt.put("ActiveStates", nbtTagList);
+    nbt.putInt("Size", this.activeStates.size());
+    compoundNBT.put("ActiveStates", nbt);
     compoundNBT.putBoolean("HasCosmetic", this.cosmetic);
     compoundNBT.putBoolean("Visible", this.visible);
     compoundNBT.putBoolean("RenderToggle", this.canToggleRender);
@@ -365,20 +580,23 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     }
 
     if (tag.contains("Stacks")) {
-      this.stackHandler.deserializeNBT(this.itemHandler.getWearer().registryAccess(),
-          tag.getCompound("Stacks"));
+      this.stackHandler.deserializeNBT(
+          this.itemHandler.getWearer().registryAccess(), tag.getCompound("Stacks"));
     }
 
     if (tag.contains("Cosmetics")) {
-      this.cosmeticStackHandler.deserializeNBT(this.itemHandler.getWearer().registryAccess(),
-          tag.getCompound("Cosmetics"));
+      this.cosmeticStackHandler.deserializeNBT(
+          this.itemHandler.getWearer().registryAccess(), tag.getCompound("Cosmetics"));
     }
 
     if (tag.contains("Renders")) {
       CompoundTag compoundNBT = tag.getCompound("Renders");
-      this.renderHandler = NonNullList.withSize(
-          compoundNBT.contains("Size", Tag.TAG_INT) ? compoundNBT.getInt("Size") :
-              this.stackHandler.getSlots(), true);
+      this.renderHandler =
+          NonNullList.withSize(
+              compoundNBT.contains("Size", Tag.TAG_INT)
+                  ? compoundNBT.getInt("Size")
+                  : this.stackHandler.getSlots(),
+              true);
       ListTag tagList = compoundNBT.getList("Renders", Tag.TAG_COMPOUND);
 
       for (int i = 0; i < tagList.size(); i++) {
@@ -387,6 +605,27 @@ public class CurioStacksHandler implements ICurioStacksHandler {
 
         if (slot >= 0 && slot < this.renderHandler.size()) {
           this.renderHandler.set(slot, tags.getBoolean("Render"));
+        }
+      }
+    }
+
+    if (tag.contains("ActiveStates")) {
+      CompoundTag compoundNBT = tag.getCompound("ActiveStates");
+      this.activeStates = NonNullList.withSize(
+          compoundNBT.contains("Size", Tag.TAG_INT) ? compoundNBT.getInt("Size") :
+              this.stackHandler.getSlots(), true);
+      this.previousActiveStates = NonNullList.withSize(
+          compoundNBT.contains("Size", Tag.TAG_INT) ? compoundNBT.getInt("Size") :
+              this.stackHandler.getSlots(), true);
+      ListTag tagList = compoundNBT.getList("ActiveStates", Tag.TAG_COMPOUND);
+
+      for (int i = 0; i < tagList.size(); i++) {
+        CompoundTag tags = tagList.getCompound(i);
+        int slot = tags.getInt("Slot");
+
+        if (slot >= 0 && slot < this.activeStates.size()) {
+          this.activeStates.set(slot, tags.getBoolean("ActiveState"));
+          this.previousActiveStates.set(slot, tags.getBoolean("ActiveState"));
         }
       }
     }
@@ -516,27 +755,40 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     }
     this.cachedModifiers.clear();
     this.flagUpdate();
+
+    if (this.itemHandler != null
+        && this.itemHandler.getWearer() instanceof LivingEntity livingEntity) {
+      this.clearCacheTick = livingEntity.tickCount;
+    } else {
+      this.clearCacheTick = -1;
+    }
   }
 
   public void update() {
 
     if (this.update) {
+
+      if (this.itemHandler == null
+          || !(this.itemHandler.getWearer() instanceof LivingEntity livingEntity)
+          || this.clearCacheTick == livingEntity.tickCount) {
+        return;
+      }
       this.update = false;
       double baseSize = this.baseSize;
 
-      for (AttributeModifier mod : this.getModifiersByOperation(
-          AttributeModifier.Operation.ADD_VALUE)) {
+      for (AttributeModifier mod :
+          this.getModifiersByOperation(AttributeModifier.Operation.ADD_VALUE)) {
         baseSize += mod.amount();
       }
       double size = baseSize;
 
-      for (AttributeModifier mod : this.getModifiersByOperation(
-          AttributeModifier.Operation.ADD_MULTIPLIED_BASE)) {
+      for (AttributeModifier mod :
+          this.getModifiersByOperation(AttributeModifier.Operation.ADD_MULTIPLIED_BASE)) {
         size += this.baseSize * mod.amount();
       }
 
-      for (AttributeModifier mod : this.getModifiersByOperation(
-          AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL)) {
+      for (AttributeModifier mod :
+          this.getModifiersByOperation(AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL)) {
         size *= mod.amount();
       }
 
@@ -549,8 +801,8 @@ public class CurioStacksHandler implements ICurioStacksHandler {
           NeoForge.EVENT_BUS.post(
               new SlotModifiersUpdatedEvent(this.itemHandler.getWearer(), Set.of(this.identifier)));
 
-          if (this.itemHandler.getWearer() instanceof Player player &&
-              player.containerMenu instanceof ICuriosMenu curiosMenu) {
+          if (this.itemHandler.getWearer() instanceof Player player
+              && player.containerMenu instanceof ICuriosMenu curiosMenu) {
             curiosMenu.resetSlots();
           }
         }
@@ -575,6 +827,17 @@ public class CurioStacksHandler implements ICurioStacksHandler {
           newList.set(i, renderHandler.get(i));
         }
         this.renderHandler = newList;
+        newList = NonNullList.withSize(Math.max(0, newSize), true);
+
+        for (int i = 0; i < newList.size() && i < this.activeStates.size(); i++) {
+          newList.set(i, this.activeStates.get(i));
+        }
+        this.activeStates = newList;
+        this.previousActiveStates = NonNullList.create();
+
+        for (int i = 0; i < this.activeStates.size(); i++) {
+          this.previousActiveStates.add(i, this.activeStates.get(i));
+        }
       } else {
         this.stackHandler.grow(change);
         this.cosmeticStackHandler.grow(change);
@@ -584,6 +847,17 @@ public class CurioStacksHandler implements ICurioStacksHandler {
           newList.set(i, renderHandler.get(i));
         }
         this.renderHandler = newList;
+        newList = NonNullList.withSize(Math.max(0, newSize), true);
+
+        for (int i = 0; i < newList.size() && i < this.activeStates.size(); i++) {
+          newList.set(i, this.activeStates.get(i));
+        }
+        this.activeStates = newList;
+        this.previousActiveStates = NonNullList.create();
+
+        for (int i = 0; i < this.activeStates.size(); i++) {
+          this.previousActiveStates.add(i, this.activeStates.get(i));
+        }
       }
     }
   }
@@ -596,7 +870,8 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     List<ItemStack> drops = new ArrayList<>();
 
     for (int i = Math.max(0, stackHandler.getSlots() - amount);
-         i >= 0 && i < stackHandler.getSlots(); i++) {
+         i >= 0 && i < stackHandler.getSlots();
+         i++) {
       ItemStack stack = stackHandler.getStackInSlot(i);
       drops.add(stackHandler.getStackInSlot(i));
       LivingEntity entity = this.itemHandler.getWearer();
@@ -622,13 +897,14 @@ public class CurioStacksHandler implements ICurioStacksHandler {
           map.removeAll(attribute);
         }
 
-        map.forEach((key, value) -> {
-          AttributeInstance attInst = attributeMap.getInstance(key);
+        map.forEach(
+            (key, value) -> {
+              AttributeInstance attInst = attributeMap.getInstance(key);
 
-          if (attInst != null) {
-            attInst.removeModifier(value);
-          }
-        });
+              if (attInst != null) {
+                attInst.removeModifier(value);
+              }
+            });
         this.itemHandler.removeSlotModifiers(slots);
         CuriosApi.getCurio(stack).ifPresent(curio -> curio.onUnequip(slotContext, ItemStack.EMPTY));
       }

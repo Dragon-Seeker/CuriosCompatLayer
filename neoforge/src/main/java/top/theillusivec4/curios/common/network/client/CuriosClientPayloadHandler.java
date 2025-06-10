@@ -29,6 +29,7 @@ import top.theillusivec4.curios.common.network.server.SPacketGrabbedItem;
 import top.theillusivec4.curios.common.network.server.SPacketPage;
 import top.theillusivec4.curios.common.network.server.SPacketQuickMove;
 import top.theillusivec4.curios.common.network.server.SPacketSetIcons;
+import top.theillusivec4.curios.common.network.server.sync.SPacketSyncActiveState;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncCurios;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncData;
 import top.theillusivec4.curios.common.network.server.sync.SPacketSyncModifiers;
@@ -92,5 +93,9 @@ public class CuriosClientPayloadHandler {
 
   public void handle(final SPacketSyncStack data, final IPayloadContext ctx) {
     //handle(ctx, () -> CuriosClientPackets.handle(data));
+  }
+
+  public void handle(final SPacketSyncActiveState data, final IPayloadContext ctx) {
+    handle(ctx, () -> CuriosClientPackets.handle(data));
   }
 }

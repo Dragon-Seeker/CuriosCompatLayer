@@ -141,6 +141,7 @@ processResources {
 }
 
 //publishing {
+//
 //    publications {
 //        mavenJava(MavenPublication) {
 //            artifactId base.archivesName.get()
@@ -149,19 +150,13 @@ processResources {
 //            artifact apiJar
 //        }
 //    }
+//
 //    repositories {
-//
-//        if (project.hasProperty('urlMaven')) {
-//
-//            if (project.hasProperty('userMaven') && project.hasProperty('passMaven')) {
-//
-//                maven {
-//                    url urlMaven
-//                    credentials {
-//                        username userMaven
-//                        password passMaven
-//                    }
-//                }
+//        maven {
+//            url = "${System.getenv('MAVEN_URL')}"
+//            credentials {
+//                username = "${System.getenv('MAVEN_USER')}"
+//                password = "${System.getenv('MAVEN_PASSWORD')}"
 //            }
 //        }
 //    }

@@ -2,6 +2,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 This is a copy of the changelog for the most recent version. For the full version history, go [here](https://github.com/TheIllusiveC4/Curios/blob/1.21.1/CHANGELOG.md).
 
-## [9.3.1+1.21.1] - 2025.03.12
+## [9.5.1+1.21.1] - 2025.05.14
 ### Fixed
-- Fixed slot tooltip rendering
+- Fixed crash on world load after updating from `9.4.2+1.21.1` or below [#520](https://github.com/TheIllusiveC4/Curios/issues/520)
