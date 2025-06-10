@@ -68,6 +68,16 @@ public final class CuriosTags {
    * @return An item tag key
    */
   public static TagKey<Item> createItemTag(String id) {
-    return TagKey.create(Registries.ITEM, ResourceLocation.fromNamespaceAndPath("curios", id));
+    var parts = id.split(":");
+
+    ResourceLocation location;
+
+    if (parts.length <= 1) {
+      location = ResourceLocation.fromNamespaceAndPath("curios", id);
+    } else {
+      location = ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
+    }
+
+    return TagKey.create(Registries.ITEM, location);
   }
 }
